@@ -1,44 +1,72 @@
 #include <Wire.h>
 #include <Servo.h>
 
-int i2cAddress = 0x40;
+int i2cAddress = 0x40;  //can be changed as/if needed
 
-Servo myservo;  // create servo object to control a servo
-Servo motor;    //Used to control motor via PWM
+Servo steering;  // create servo object to control a servo
+Servo motor;     //Used to control motor via PWM
 
 //int pos = 0;    // variable to store the servo position
 
 void setup()
 {
-  Wire.begin(i2cAddress);                // join i2c bus with address #0x40
+  Wire.begin(i2cAddress);       // join i2c bus with address #0x40
   Wire.onReceive(receiveEvent); // register event
   Wire.onRequest(sendData);
   
   Serial.begin(9600);           // start serial for output
-  myservo.attach(3);  // attaches the servo on pin 3 to the servo object
-  myservo.write(90);
+
+  steering.attach(3);  // attaches the pins to motor and steering objects
+  motor.attach(6);
 }
 
-int servoState = 0;
+int steeringState = 0;  //Value of steering and motor variables
+int motorState = 0;
 
 void receiveEvent(int bytes) {
-  servoState = Wire.read();    // read one character from the I2C
+  steeringState = Wire.read();    // read one character from the I2C
+
+  // TODO this needs to be updated to read multiple characters from the I2C bus
+
 }
 
 void loop()
 {
-  if(servoState > 0) {  
-    if(servoState == 2){
-        myservo.write(90);
-        servoState = 0;
+  if(steeringState > 0) {  
+    if(steeringState == 2){
+        steering.write(90);
+        steeringState = 0;
     }
-    else if(servoState == 3){    
-        myservo.write(180);
-        servoState = 0;                    
+    else if(steeringState == 3){    
+        steering.write(180);
+        steeringState = 0;                    
     }
   }
 }
 
+//TODO Update below function to include Motor related data also
+/**
+ * Return data to Jetson via I2C wires
+ * Used to inform system of variable states
+ * 
+*/
 void sendData(){
-    Wire.write(servoState);
+    Wire.write(steeringState); //will want to adjust this to send all data we are concerned with
+}
+
+//TODO below function needs tweaking to ensure motor arming is correctly done
+/**
+ * Called only in setup loop
+ * Used to arm ESC for motor control
+ * 
+*/
+void armMotor(Servo motorToArm){
+  Serial.print("Arming.");
+  motorToArm.write(0);
+  delay(100);
+  motorToArm.write(1224); //A value at which the motor starts turning
+  delay(2000);
+  motorToArm.write(1024); //A value at which the motor stands still
+  delay(3000);
+  Serial.println(" Armed!");
 }
