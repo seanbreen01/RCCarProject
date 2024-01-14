@@ -1,0 +1,44 @@
+#include <Wire.h>
+#include <Servo.h>
+
+int i2cAddress = 0x40;
+
+Servo myservo;  // create servo object to control a servo
+Servo motor;    //Used to control motor via PWM
+
+//int pos = 0;    // variable to store the servo position
+
+void setup()
+{
+  Wire.begin(i2cAddress);                // join i2c bus with address #0x40
+  Wire.onReceive(receiveEvent); // register event
+  Wire.onRequest(sendData);
+  
+  Serial.begin(9600);           // start serial for output
+  myservo.attach(3);  // attaches the servo on pin 3 to the servo object
+  myservo.write(90);
+}
+
+int servoState = 0;
+
+void receiveEvent(int bytes) {
+  servoState = Wire.read();    // read one character from the I2C
+}
+
+void loop()
+{
+  if(servoState > 0) {  
+    if(servoState == 2){
+        myservo.write(90);
+        servoState = 0;
+    }
+    else if(servoState == 3){    
+        myservo.write(180);
+        servoState = 0;                    
+    }
+  }
+}
+
+void sendData(){
+    Wire.write(servoState);
+}

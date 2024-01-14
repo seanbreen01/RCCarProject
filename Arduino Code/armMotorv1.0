@@ -17,6 +17,11 @@ void loop() {
 
   m1.write(1500);
   Serial.println(1500);
+  delay(2000)
+  m1.write(1900)
+  delay(2000)
+  m1.write(1000)
+  delay(2000)
 }
 
 void arm(Servo m){
