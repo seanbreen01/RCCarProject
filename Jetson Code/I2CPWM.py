@@ -7,18 +7,17 @@ bus = smbus.SMBus(0)
 address = 0x40
 
 def writeToArduino(valueToWrite):
-    
-    # bus.write_byte(address, int(value))
-    
+    bytesToWrite = []
+    for value in valueToWrite:
+        # Split each integer into two bytes (high byte and low byte)
+        highByte = (value >> 8) & 0xFF
+        lowByte = value & 0xFF
+        bytesToWrite.extend([highByte, lowByte])
 
-    #TODO update this so that values are sent in correct format for Arduino to receive
-    # value will be a list of numbers that inform the vehicle of how to react
-
-
-#Will need to check the format of this no doubt
-    bus.write_i2c_block_data(address, 0, [valueToWrite[0], valueToWrite[1], valueToWrite[2]])
-
-    return -1
+    # Send the byte array
+    print('Bytes: ')
+    print(bytesToWrite)
+    bus.write_i2c_block_data(address, 0, bytesToWrite)
 
 def readNumber():
     number = bus.read_byte(address)
@@ -44,9 +43,10 @@ if __name__ == "__main__":
     jiggleWheelsValues.append([0, 165, 600])
 
     for value in jiggleWheelsValues:
-        writeToArduino(jiggleWheelsValues[value])
+        print('here')
+        writeToArduino(value)
         
-        print(jiggleWheelsValues[value])    #For debugging
+        # print(value)    #For debugging
 
         time.sleep(1)    #this will need to be replaced by something else as the time.sleep will stop the camera from functioning in full scale model
    
