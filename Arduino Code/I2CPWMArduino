@@ -12,19 +12,27 @@ void setup()
   Wire.onReceive(receiveEvent); // register event
   Wire.onRequest(sendData);
   
-  //TODO should this be increased to higher data rate, testing to see
+  //TODO should this be increased to higher data rate, test to see
   Serial.begin(9600);           // start serial for output
 
   steering.attach(3);  // attaches the pins to motor and steering objects
   motor.attach(6);
 }
 
-int steeringState = 0;  //Value of steering and motor variables
-int motorState = 0;
+//TODO adjust these
+int neutralSteering = 0;  //Value of steering and motor variables when idle
+int neutralMotor = 0;
+float neutralDuration = 0.0;
 
 float steeringTimer = 0.0;  //used to determine how much longer to hold current values for steering input and motor speed
+float steeringTimerBegin = 0.0;
 float motorTimer = 0.0;
+float motorTimerBegin = 0.0;
 
+/**
+ * Method to read bytes from the I2C bus and create an array containing the values to 
+ * be sent to teh steering servo and motor control ESC
+*/
 void receiveEvent(int bytes) {
   
   byte nothing = Wire.read(); //used to clear first 0 sent on bus, not needed for our purposes
@@ -36,20 +44,21 @@ void receiveEvent(int bytes) {
   byte timeMSB = Wire.read();
   byte timeLSB = Wire.read();
 
-  Serial.print("deviceMSB: ");
-  Serial.println(deviceMSB);
-  Serial.print("deviceLSB: ");
-  Serial.println(deviceLSB);
-  Serial.print("valueMSB: ");
-  Serial.println(valueMSB);
-  Serial.print("valueLSB: ");
-  Serial.println(valueLSB);
-  Serial.print("timeMSB: ");
-  Serial.println(timeMSB);
-  Serial.print("timeLSB: ");
-  Serial.println(timeLSB);
+  // For debugging
+  // Serial.print("deviceMSB: ");
+  // Serial.println(deviceMSB);
+  // Serial.print("deviceLSB: ");
+  // Serial.println(deviceLSB);
+  // Serial.print("valueMSB: ");
+  // Serial.println(valueMSB);
+  // Serial.print("valueLSB: ");
+  // Serial.println(valueLSB);
+  // Serial.print("timeMSB: ");
+  // Serial.println(timeMSB);
+  // Serial.print("timeLSB: ");
+  // Serial.println(timeLSB);
 
-  //TODO reconstruct payload here
+  //Reconstruct payload
   //Combine individual bytes to correct values
   int deviceSelected = (deviceMSB<<8) | (deviceLSB);
   int value = (valueMSB<<8) | (valueLSB);
@@ -58,42 +67,63 @@ void receiveEvent(int bytes) {
   //create array containing values
   int payload[] = {deviceSelected, value, timeToHoldMillis};
   
-
   if(payload[0] == 0){  //it is a steering update
-    steering.write(payload[1]);
-    steeringTimer = payload[2];
+    adjustSteering(payload[1], payload[2]);
   }
   else if(payload[0] == 1){ //is a motor update
-    motor.write(payload[1]);
-    motorTimer = payload[2];
+    adjustMotor(payload[1], payload[2]);
   }
   else{
     //Not a valid device select, log this 
-    Serial.println("Invalid device select offered");
+    Serial.println("Invalid device select offered by Jetson I2C connection");
   }
-
-  // TODO this needs to be updated to read multiple characters from the I2C bus
 
 }
 
 void loop()
 {
   //TODO first step: update timers and act on these if needed
+  currentTime = millis();
+  if(motorTimerBegin + motorTimer >= millis()){
+    //out of time on current steering action, need to respond by returning steering to neutral position
+    adjustMotor(neutralMotor, neutralDuration);
 
-  if(steeringState > 0) {  
-    if(steeringState == 2){
-        steering.write(90);
-        steeringState = 0;    //do I need to have this every time?
-    }
-    else if(steeringState == 3){    
-        steering.write(180);
-        steeringState = 0;                    
-    }
+  }
+  if(steeringTimerBegin + steeringTimer >= millis()){
+    //out of time, return steering to neutral
+    adjustSteering(neutralSteering, neutralDuration);
   }
 
   //main logic here
-  //Serial.println("Within main loop");
+  
 
+}
+
+/**
+ * method called whenever adjusting the steering input of RC car
+ * Input value from 0 to 180 setting the servo position
+ * Input duration is value in millis for how long position should be held
+*/
+void adjustSteering(int value, int duration){
+  //TODO check input to see if it is beyond allowed limits for servo position
+  //Needed to avoid damage to servo itself or RC car
+
+  steering.write(value)
+  steeringTimer = (float)duration;
+  steeringTimerBegin = millis();
+}
+
+/**
+ * Metod called whenever adjusting motor input of RC car
+ * Input values between 1000 and 2000
+ * Input duration is value in millis for how long power should be held
+*/
+void adjustMotor(int value, int duration){
+  //TODO check value input to ensure it is within allowed limits for vehicle
+
+  motor.write(value)
+  motorTimer = (float)duration;
+  motorTimerBegin = milis();
 }
 
 //TODO Update below function to include Motor related data also
@@ -103,7 +133,7 @@ void loop()
  * 
 */
 void sendData(){
-    Wire.write(steeringState); //will want to adjust this to send all data we are concerned with
+    Wire.write(1); //will want to adjust this to send all data we are concerned with
 }
 
 //TODO below function needs tweaking to ensure motor arming is correctly done

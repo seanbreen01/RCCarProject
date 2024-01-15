@@ -15,7 +15,7 @@ def writeToArduino(valueToWrite):
         bytesToWrite.extend([highByte, lowByte])
 
     # Send the byte array
-    print('Bytes: ')
+    print('Bytes: ')    #For debug
     print(bytesToWrite)
     bus.write_i2c_block_data(address, 0, bytesToWrite)
 
