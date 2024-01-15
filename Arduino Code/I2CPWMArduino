@@ -1,12 +1,12 @@
 #include <Wire.h>
 #include <Servo.h>
 
+#define BUFFER_SIZE = 32
+
 int i2cAddress = 0x40;  //can be changed as/if needed
 
 Servo steering;  // create servo object to control a servo
 Servo motor;     //Used to control motor via PWM
-
-//int pos = 0;    // variable to store the servo position
 
 void setup()
 {
@@ -14,6 +14,7 @@ void setup()
   Wire.onReceive(receiveEvent); // register event
   Wire.onRequest(sendData);
   
+  //TODO should this be increased to higher data rate, testing to see
   Serial.begin(9600);           // start serial for output
 
   steering.attach(3);  // attaches the pins to motor and steering objects
@@ -23,8 +24,39 @@ void setup()
 int steeringState = 0;  //Value of steering and motor variables
 int motorState = 0;
 
+float steeringTimer = 0.0;  //used to determine how much longer to hold current values for steering input and motor speed
+float motorTimer = 0.0;
+
 void receiveEvent(int bytes) {
-  steeringState = Wire.read();    // read one character from the I2C
+  //updateState = Wire.read();    // read one character from the I2C
+  
+  
+  byte deviceSelected = Wire.read();  //0 is servo, 1 is motor
+  byte valueMSB = Wire.read();
+  byte valueLSB = Wire.read();
+  byte timeMSB = Wire.read();
+  byte timeLSB = Wire.read();
+
+  //TODO reconstruct payload here
+  //Combine individual bytes to correct values
+  int value = (valueMSB<<8) | (valueLSB);
+  int timeToHoldMillis = (timeMSB<<8) | (timeLSB);
+
+  //create array containing values
+  int payload[] = {deviceSelected, value, timeToHoldMillis};
+
+  if(payload[0] == 0){  //it is a steering update
+    steering.write(payload[1]);
+    steeringTimer = payload[2];
+  }
+  else if(payload[0] == 1){ //is a motor update
+    motor.write(payload[1]);
+    motorTimer = payload[2];
+  }
+  else{
+    //Not a valid device select, log this 
+    Serial.println("Invalid device select offered");
+  }
 
   // TODO this needs to be updated to read multiple characters from the I2C bus
 
@@ -32,16 +64,22 @@ void receiveEvent(int bytes) {
 
 void loop()
 {
+  //TODO first step: update timers and act on these if needed
+
   if(steeringState > 0) {  
     if(steeringState == 2){
         steering.write(90);
-        steeringState = 0;
+        steeringState = 0;    //do I need to have this every time?
     }
     else if(steeringState == 3){    
         steering.write(180);
         steeringState = 0;                    
     }
   }
+
+  //main logic here
+
+
 }
 
 //TODO Update below function to include Motor related data also
