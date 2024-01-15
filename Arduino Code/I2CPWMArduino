@@ -1,8 +1,6 @@
 #include <Wire.h>
 #include <Servo.h>
 
-#define BUFFER_SIZE = 32
-
 int i2cAddress = 0x40;  //can be changed as/if needed
 
 Servo steering;  // create servo object to control a servo
@@ -28,22 +26,38 @@ float steeringTimer = 0.0;  //used to determine how much longer to hold current 
 float motorTimer = 0.0;
 
 void receiveEvent(int bytes) {
-  //updateState = Wire.read();    // read one character from the I2C
   
+  byte nothing = Wire.read(); //used to clear first 0 sent on bus, not needed for our purposes
   
-  byte deviceSelected = Wire.read();  //0 is servo, 1 is motor
+  byte deviceMSB = Wire.read();  //0 is servo, 1 is motor
+  byte deviceLSB = Wire.read();
   byte valueMSB = Wire.read();
   byte valueLSB = Wire.read();
   byte timeMSB = Wire.read();
   byte timeLSB = Wire.read();
 
+  Serial.print("deviceMSB: ");
+  Serial.println(deviceMSB);
+  Serial.print("deviceLSB: ");
+  Serial.println(deviceLSB);
+  Serial.print("valueMSB: ");
+  Serial.println(valueMSB);
+  Serial.print("valueLSB: ");
+  Serial.println(valueLSB);
+  Serial.print("timeMSB: ");
+  Serial.println(timeMSB);
+  Serial.print("timeLSB: ");
+  Serial.println(timeLSB);
+
   //TODO reconstruct payload here
   //Combine individual bytes to correct values
+  int deviceSelected = (deviceMSB<<8) | (deviceLSB);
   int value = (valueMSB<<8) | (valueLSB);
   int timeToHoldMillis = (timeMSB<<8) | (timeLSB);
 
   //create array containing values
   int payload[] = {deviceSelected, value, timeToHoldMillis};
+  
 
   if(payload[0] == 0){  //it is a steering update
     steering.write(payload[1]);
@@ -77,10 +91,8 @@ void loop()
     }
   }
 
-  //TODO main logic here
-
-  //TODO figure out how to make motor run in reverse if possible?
-
+  //main logic here
+  //Serial.println("Within main loop");
 
 }
 
@@ -92,10 +104,6 @@ void loop()
 */
 void sendData(){
     Wire.write(steeringState); //will want to adjust this to send all data we are concerned with
-
-    //TODO update this so that all relevant info is returned to Jetson
-
-   
 }
 
 //TODO below function needs tweaking to ensure motor arming is correctly done
