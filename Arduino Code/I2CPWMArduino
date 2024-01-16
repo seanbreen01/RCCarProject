@@ -1,10 +1,11 @@
 #include <Wire.h>
 #include <Servo.h>
+#include <ESC.h>    //motor control library
 
 int i2cAddress = 0x40;  //can be changed as/if needed
 
-Servo steering;  // create servo object to control a servo
-Servo motor;     //Used to control motor via PWM
+Servo steering;                  // create servo object to control steering servo
+ESC motor (6,1000,2000,500);     //Used to control motor via PWM
 
 void setup()
 {
@@ -16,7 +17,8 @@ void setup()
   Serial.begin(9600);           // start serial for output
 
   steering.attach(3);  // attaches the pins to motor and steering objects
-  motor.attach(6);
+  motor.arm();    //setup motor ESC controller for use
+  delay(5000);
 }
 
 //TODO adjust these
@@ -31,7 +33,7 @@ float motorTimerBegin = 0.0;
 
 /**
  * Method to read bytes from the I2C bus and create an array containing the values to 
- * be sent to teh steering servo and motor control ESC
+ * be sent to the steering servo and motor control ESC
 */
 void receiveEvent(int bytes) {
   
@@ -65,13 +67,13 @@ void receiveEvent(int bytes) {
   int timeToHoldMillis = (timeMSB<<8) | (timeLSB);
 
   //create array containing values
-  int payload[] = {deviceSelected, value, timeToHoldMillis};
+  //int payload[] = {deviceSelected, value, timeToHoldMillis};
   
-  if(payload[0] == 0){  //it is a steering update
-    adjustSteering(payload[1], payload[2]);
+  if(deviceSelected == 0){  //it is a steering update
+    adjustSteering(value, timeToHoldMillis);
   }
-  else if(payload[0] == 1){ //is a motor update
-    adjustMotor(payload[1], payload[2]);
+  else if(deviceSelected == 1){ //is a motor update
+    adjustMotor(value, timeToHoldMillis);
   }
   else{
     //Not a valid device select, log this 
@@ -84,12 +86,12 @@ void loop()
 {
   //TODO first step: update timers and act on these if needed
   currentTime = millis();
-  if(motorTimerBegin + motorTimer >= millis()){
+  if(motorTimerBegin + motorTimer >= currentTime){
     //out of time on current steering action, need to respond by returning steering to neutral position
     adjustMotor(neutralMotor, neutralDuration);
 
   }
-  if(steeringTimerBegin + steeringTimer >= millis()){
+  if(steeringTimerBegin + steeringTimer currentTime){
     //out of time, return steering to neutral
     adjustSteering(neutralSteering, neutralDuration);
   }
@@ -121,7 +123,7 @@ void adjustSteering(int value, int duration){
 void adjustMotor(int value, int duration){
   //TODO check value input to ensure it is within allowed limits for vehicle
 
-  motor.write(value)
+  motor.speed(value);
   motorTimer = (float)duration;
   motorTimerBegin = milis();
 }
@@ -134,21 +136,4 @@ void adjustMotor(int value, int duration){
 */
 void sendData(){
     Wire.write(1); //will want to adjust this to send all data we are concerned with
-}
-
-//TODO below function needs tweaking to ensure motor arming is correctly done
-/**
- * Called only in setup loop
- * Used to arm ESC for motor control
- * 
-*/
-void armMotor(Servo motorToArm){
-  Serial.print("Arming.");
-  motorToArm.write(0);
-  delay(100);
-  motorToArm.write(1224); //A value at which the motor starts turning
-  delay(2000);
-  motorToArm.write(1024); //A value at which the motor stands still
-  delay(3000);
-  Serial.println(" Armed!");
 }

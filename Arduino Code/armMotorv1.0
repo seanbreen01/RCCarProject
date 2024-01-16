@@ -1,5 +1,4 @@
 #include <Servo.h>
-//#define POT A0
 
 Servo m1;
 
@@ -12,16 +11,15 @@ void setup() {
 }
 
 void loop() {
-  //int potValue = analogRead(POT);
-  //int s = map(potValue,60,930,1200,1700); //Map the pot values to motor values
 
+  Serial.println("Main loop entered")
   m1.write(1500);
   Serial.println(1500);
-  delay(2000)
+  delay(1200)
   m1.write(1900)
-  delay(2000)
+  delay(1500)
   m1.write(1000)
-  delay(2000)
+  delay(1000)
 }
 
 void arm(Servo m){
