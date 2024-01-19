@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pylab
 import time
 
-cap = cv2.VideoCapture('20231023_172936.mp4')
+cap = cv2.VideoCapture('/Videos/20231023_172936.mp4')
 
 fourcc = cv2.VideoWriter_fourcc(*'XVID')
 out = cv2.VideoWriter('output_video.mp4', fourcc, 30, (1280, 720))
