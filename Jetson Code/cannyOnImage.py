@@ -6,7 +6,7 @@ import time
 
 start_time = time.time()
 
-img = cv2.imread('20231023_172839.jpg')
+img = cv2.imread('./Videos/20231023_172839.jpg')
 
 grayImg = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 

@@ -91,7 +91,7 @@ void loop()
     adjustMotor(neutralMotor, neutralDuration);
 
   }
-  if(steeringTimerBegin + steeringTimer currentTime){
+  if(steeringTimerBegin + steeringTimer >= currentTime){
     //out of time, return steering to neutral
     adjustSteering(neutralSteering, neutralDuration);
   }
