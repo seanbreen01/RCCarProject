@@ -29,38 +29,60 @@ def readNumber():
 
 if __name__ == "__main__":
     # create rough testing script
-
-    #jiggle wheels
-    jiggleWheelsValues = []
     # Format is:
     # 0 = steering servo, 1 = motor
     # 45 = angle of steering servo, or motor power in motor instance
     # 1000 = duration (in millis) to hold this position
-    jiggleWheelsValues.append([0, 45, 500])  
-    jiggleWheelsValues.append([0, 0, 750])
-    jiggleWheelsValues.append([0, 130, 250])
-    jiggleWheelsValues.append([0, 90, 800])
-    jiggleWheelsValues.append([0, 165, 600])
+
+    #jiggle wheels
+    jiggleWheelsValues = []
+    jiggleWheelsValues.append([0, 60, 200])  #minimum steering angle
+    jiggleWheelsValues.append([0, 65, 200])
+    jiggleWheelsValues.append([0, 70, 200])
+    jiggleWheelsValues.append([0, 75, 200])
+    jiggleWheelsValues.append([0, 80, 200])
+    jiggleWheelsValues.append([0, 85, 200])  
+    jiggleWheelsValues.append([0, 90, 200])
+    jiggleWheelsValues.append([0, 95, 200])
+    jiggleWheelsValues.append([0, 100, 200])
+    jiggleWheelsValues.append([0, 105, 200])
+    jiggleWheelsValues.append([0, 110, 200]) # maximum steering angle
+    jiggleWheelsValues.append([0, 105, 200])
+    jiggleWheelsValues.append([0, 100, 200])
+    jiggleWheelsValues.append([0, 95, 200])
+    jiggleWheelsValues.append([0, 90, 200])
+    jiggleWheelsValues.append([0, 85, 200])
+    jiggleWheelsValues.append([0, 80, 200])
+    jiggleWheelsValues.append([0, 75, 200])  
+    jiggleWheelsValues.append([0, 70, 200])
+    jiggleWheelsValues.append([0, 65, 200])
+    jiggleWheelsValues.append([0, 60, 200])
+
 
     for value in jiggleWheelsValues:
-        print('here')
         writeToArduino(value)
-        
-        # print(value)    #For debugging
-
-        time.sleep(1)    #this will need to be replaced by something else as the time.sleep will stop the camera from functioning in full scale model
+        time.sleep(0.1)    #this will need to be replaced by something else as the time.sleep will stop the camera from functioning in full scale model
    
    
     #forward and back?
     #TODO need to figure out if motor can be made to run in reverse
-
     forwardBackward = []
 
-    forwardBackward.append([1, 1500, 1000])
+    forwardBackward.append([1, 1100, 1000])
     forwardBackward.append([1, 1500, 1000])
     forwardBackward.append([1, 1500, 1000])
     forwardBackward.append([1, 1500, 1000])
 
     #Drive in circle
+    #TODO check if addressing of motor and steering is correct, i.e. is steering sufficient and motor not running to fast
+    # in essence just a real world test to make sure everything is happy
+    circleDrive = []
+    circleDrive.append([0, 110, 1000])
+    circleDrive.append([1, 1200, 1000])
 
+    for value in circleDrive:
+        writeToArduino(value)
+        time.sleep(1) # need to adjust this value appropriately 
     # Another one?
+        
+    

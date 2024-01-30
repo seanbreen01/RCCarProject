@@ -4,7 +4,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-image_path = '20231023_174201.jpg'
+image_path = './Videos/20231023_175350.jpg'
 image1 = cv2.imread(image_path)
 plt.imshow(image1)
 

@@ -3,8 +3,6 @@ import cv2.aruco as aruco
 import numpy as np
 import time
 
-print("Setup initialised")
-
 ARUCO_DICT = {
 	"DICT_4X4_50": cv2.aruco.DICT_4X4_50,
 	"DICT_4X4_100": cv2.aruco.DICT_4X4_100,
@@ -29,18 +27,12 @@ ARUCO_DICT = {
 #	"DICT_APRILTAG_36h11": cv2.aruco.DICT_APRILTAG_36h11
 }
 
-# Load the predefined dictionary
-aruco_dict = aruco.Dictionary_get(ARUCO_DICT["DICT_4X4_50"])
-# Initialize the detector parameters using default values
-parameters = aruco.DetectorParameters_create()
+# Below works for opencv versions 4.7.x and beyond
 
-gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC3, -1, (25,25), 5)
-image_gpu = cv2.cuda_GpuMat()   #declaring CUDA object into which we can pass images for processing with onboard GPU
+aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
+parameters = aruco.DetectorParameters()
+detector = aruco.ArucoDetector(aruco_dict, parameters)
 
-#TODO add prints for variable settings, useful for debugging in real world testing especially 
-print("Setup complete")
-
-#TODO adjust parameters of GStreamer pipeline based on testing results for optimal resolution and framerate
 def gstreamer_pipeline(
     capture_width=1280, #lowered from 1920x1080 for improved speed
     capture_height=720,
@@ -67,24 +59,17 @@ def gstreamer_pipeline(
         )
     )
 
-startTime = time.time() # TODO put this where it is appropriate
+startTime = time.time()
 
 cap = cv2.VideoCapture(gstreamer_pipeline(), cv2.CAP_GSTREAMER)
 window_title = "RCCar Video Output Debug Feed"
 
 def imageProcessing(frame):
-    image_gpu.upload(frame)  
+    
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    gray_gpu = cv2.cuda.cvtColor(image_gpu, cv2.COLOR_BGR2GRAY)
-    #TODO remove from final build 
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  #for temporoary debugging
-
-    returnedImage = gray_gpu.download()
-
-    # Detect the markers
-    corners, ids, rejected_img_points = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
-
-    # For debugging if needed
+    corners, ids, rejected_img_points = detector.detectMarkers(gray)
+    # For debugging if necessary
     # print("Corners" + str(corners))
     # print("ids" + str(ids))
     # print("rejected" + str(rejected_img_points))
@@ -106,22 +91,17 @@ def imageProcessing(frame):
             cv2.putText(frame, str(ids[i][0]), text_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
 
         cv2.imshow('Detected Markers', frame)
-
-
+    
     else:
         print("No marker present in frame")
-
-    
     
     #Do some more with frame, etc. etc. 
 
 
     
 
-    
 
-
-    # Will actually return values to send to the Arduino and affect some change in its movement
+    # Will actually return a command to send to the Arduino and affect some change in its movement
     return gray
 
 def loopy():
