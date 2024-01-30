@@ -18,13 +18,14 @@ void setup()
 
   steering.attach(3);  // attaches the pins to motor and steering objects
   motor.arm();    //setup motor ESC controller for use
+
   delay(5000);
 }
 
 //TODO adjust these
-int neutralSteering = 0;  //Value of steering and motor variables when idle
-int neutralMotor = 0;
-float neutralDuration = 0.0;
+int neutralSteering = 90;  //Value of steering and motor variables when idle
+int neutralMotor = 1000;
+float neutralDuration = 1000;
 
 float steeringTimer = 0.0;  //used to determine how much longer to hold current values for steering input and motor speed
 float steeringTimerBegin = 0.0;
@@ -37,14 +38,13 @@ float motorTimerBegin = 0.0;
 */
 void receiveEvent(int bytes) {
   
-  byte nothing = Wire.read(); //used to clear first 0 sent on bus, not needed for our purposes
-  
-  byte deviceMSB = Wire.read();  //0 is servo, 1 is motor
+  byte nothing   = Wire.read();    //used to clear first 0 sent on bus, not needed for our purposes
+  byte deviceMSB = Wire.read();  
   byte deviceLSB = Wire.read();
-  byte valueMSB = Wire.read();
-  byte valueLSB = Wire.read();
-  byte timeMSB = Wire.read();
-  byte timeLSB = Wire.read();
+  byte valueMSB  = Wire.read();
+  byte valueLSB  = Wire.read();
+  byte timeMSB   = Wire.read();
+  byte timeLSB   = Wire.read();
 
   // For debugging
   // Serial.print("deviceMSB: ");
@@ -63,11 +63,8 @@ void receiveEvent(int bytes) {
   //Reconstruct payload
   //Combine individual bytes to correct values
   int deviceSelected = (deviceMSB<<8) | (deviceLSB);
-  int value = (valueMSB<<8) | (valueLSB);
+  int value =           (valueMSB<<8) | (valueLSB);
   int timeToHoldMillis = (timeMSB<<8) | (timeLSB);
-
-  //create array containing values
-  //int payload[] = {deviceSelected, value, timeToHoldMillis};
   
   if(deviceSelected == 0){  //it is a steering update
     adjustSteering(value, timeToHoldMillis);
@@ -75,24 +72,25 @@ void receiveEvent(int bytes) {
   else if(deviceSelected == 1){ //is a motor update
     adjustMotor(value, timeToHoldMillis);
   }
-  else{
-    //Not a valid device select, log this 
-    Serial.println("Invalid device select offered by Jetson I2C connection");
+  else{ //Not a valid device select, log this 
+    Serial.print("Invalid device select detected, no device addressed: ");
+    Serial.println(deviceSelected);
   }
 
 }
 
 void loop()
 {
-  //TODO first step: update timers and act on these if needed
+  //first step: update timers and act on these if needed
   currentTime = millis();
+
   if(motorTimerBegin + motorTimer >= currentTime){
-    //out of time on current steering action, need to respond by returning steering to neutral position
+    //out of time on current motor action, return steering to neutral
     adjustMotor(neutralMotor, neutralDuration);
 
   }
   if(steeringTimerBegin + steeringTimer >= currentTime){
-    //out of time, return steering to neutral
+    //out of time on current steering action, need to respond by returning steering to neutral position
     adjustSteering(neutralSteering, neutralDuration);
   }
 
@@ -102,30 +100,41 @@ void loop()
 }
 
 /**
- * method called whenever adjusting the steering input of RC car
+ * Method called whenever adjusting the steering input of RC car
  * Input value from 0 to 180 setting the servo position
  * Input duration is value in millis for how long position should be held
 */
 void adjustSteering(int value, int duration){
-  //TODO check input to see if it is beyond allowed limits for servo position
+  //Check input to see if it is beyond allowed limits for servo position
   //Needed to avoid damage to servo itself or RC car
-
-  steering.write(value)
-  steeringTimer = (float)duration;
-  steeringTimerBegin = millis();
+  if(value <= 110 && value >= 60){
+    steering.write(value);
+    steeringTimer = (float)duration;
+    steeringTimerBegin = millis();
+  }
+  else{//invalid steering value specified
+    Serial.print("Invalid steering value decoded, cannot adjust steering servo to position: ");
+    Serial.println(value);
+  }
+  
 }
 
 /**
- * Metod called whenever adjusting motor input of RC car
+ * Method called whenever adjusting motor input of RC car
  * Input values between 1000 and 2000
  * Input duration is value in millis for how long power should be held
 */
 void adjustMotor(int value, int duration){
-  //TODO check value input to ensure it is within allowed limits for vehicle
-
-  motor.speed(value);
-  motorTimer = (float)duration;
-  motorTimerBegin = milis();
+  //check value input to ensure it is within allowed limits for vehicle
+  if(value <= 2000 && value >= 1000){
+    motor.speed(value);
+    motorTimer = (float)duration;
+    motorTimerBegin = milis();
+  }
+  else{//invalid motor value specified
+    Serial.print("Invalid motor value decoded, cannot adjust motor speed to: ");
+    Serial.println(value);
+  }
 }
 
 //TODO Update below function to include Motor related data also
