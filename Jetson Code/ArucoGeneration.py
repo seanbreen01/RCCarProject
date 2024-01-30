@@ -31,8 +31,6 @@ def generate_aruco_markers(dictionary, marker_size, output_folder):
         marker_image = aruco.drawMarker(dictionary, marker_id, marker_size, tag, 1)
         address = f"./Markers/Marker_{marker_id}.png"
         cv2.imwrite(address, marker_image)
-        # cv2.imshow("tag", tag)
-        # cv2.waitKey(0)
 
 if __name__ == "__main__":
     aruco_dict = aruco.Dictionary_get(ARUCO_DICT["DICT_4X4_50"])    #can change if needed
