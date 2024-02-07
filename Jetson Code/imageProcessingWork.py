@@ -106,8 +106,6 @@ def imageProcessing(frame):
             cv2.putText(frame, str(ids[i][0]), text_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
 
         cv2.imshow('Detected Markers', frame)
-
-
     else:
         print("No marker present in frame")
 
