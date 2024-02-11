@@ -1,9 +1,46 @@
-import cv2
-from pynput import keyboard
+import sys
+import select
+import tty
+import termios
 import threading
-from keyboard_handler import on_press
+import cv2
+import smbus
+import time
 
-def capture_video():
+# Global flag to control video recording thread
+stop_video = False
+
+# Nvidia Jetson Nano i2c Bus 0
+bus = smbus.SMBus(0)
+# This is the address we setup in the Arduino script
+address = 0x40
+
+def writeToArduino(valueToWrite):
+    bytesToWrite = []
+    for value in valueToWrite:
+        # Split each integer into two bytes (high byte and low byte)
+        highByte = (value >> 8) & 0xFF
+        lowByte = value & 0xFF
+        bytesToWrite.extend([highByte, lowByte])
+
+    # Send the byte array
+    print('Bytes: ')    #For debug
+    print(bytesToWrite)
+    bus.write_i2c_block_data(address, 0, bytesToWrite)
+
+def readNumber():
+    number = bus.read_byte(address)
+    # number = bus.read_byte_data(address, 1)
+
+    #TODO update to read from bus in correct format
+    return number
+
+
+def is_data():
+    return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
+
+def record_video(output_file):
+    global stop_video
     # Define the GStreamer pipeline for the CSI camera
     gstreamer_pipeline = (
         "nvarguscamerasrc ! "
@@ -14,50 +51,63 @@ def capture_video():
         "video/x-raw, format=(string)BGR ! appsink"
     )
 
-    # Create a VideoCapture object
     cap = cv2.VideoCapture(gstreamer_pipeline, cv2.CAP_GSTREAMER)
-
-    #cap = cv2.VideoCapture(0) # if want to use webcam for debug, change 'out' resolution to 640*480 also
-
-    # Define the codec and create VideoWriter object
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter('output.avi', fourcc, 20.0, (1920, 1080))
+    out = cv2.VideoWriter(output_file, fourcc, 20.0, (1920, 1080))
 
-    # Check if camera opened successfully
     if not cap.isOpened():
         print("Cannot open camera")
         exit()
 
-    while True:
+    while not stop_video:
         ret, frame = cap.read()
         if not ret:
-            print("Can't receive frame (stream end?). Exiting ...")
+            print("Can't receive frame. Exiting ...")
             break
-
-        # Write the frame into the file 'output.avi'
         out.write(frame)
 
-        # Display the resulting frame
-        #cv2.imshow('frame', frame)
-        if cv2.waitKey(1) == ord('q'):
-            break
-
-    # Release everything if job is finished
     cap.release()
     out.release()
-    cv2.destroyAllWindows()
+
 
 def main():
-    # Start video capture in a separate thread
-    video_thread = threading.Thread(target=capture_video)
+    global stop_video
+    video_thread = threading.Thread(target=record_video, args=('outputnew23.avi',))
     video_thread.start()
 
-    # Start listening for keyboard input
-    listener = keyboard.Listener(on_press=on_press)
-    listener.start()
+    old_settings = termios.tcgetattr(sys.stdin)
+    try:
+        tty.setcbreak(sys.stdin.fileno())
 
-    video_thread.join()
-    listener.join()
+        print("Press 'W', 'A', 'S', 'D' keys (Enter to exit):")
+
+        while True:
+            if is_data():
+                c = sys.stdin.read(1)
+                if c == '\n':  # Enter key to break the loop
+                    break
+                if c.upper() == 'W':
+                    print("Forward")    
+                    writeToArduino([1,1600,250])
+                    #Could add sliding increase to 1600 value to gradually accelerate, prob not necessary for needs here though 
+                elif c.upper() == 'A':
+                    print("Left")
+                    writeToArduino([0,110,250])
+                elif c.upper() == 'S':
+                    print("Backward")
+                    writeToArduino([1,1400,250])
+                elif c.upper() == 'D':
+                    print("Right")
+                    writeToArduino([0,60,250])
+
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        stop_video = True
+        video_thread.join()
+        print("Exited gracefully")
 
 if __name__ == "__main__":
     main()

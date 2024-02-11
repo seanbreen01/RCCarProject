@@ -79,7 +79,7 @@ void receiveEvent(int bytes) {
   }
 
 }
-
+int pos = 1300;
 void loop()
 {
   //first step: update timers and act on these if needed
@@ -87,17 +87,22 @@ void loop()
 
   if(motorTimerBegin + motorTimer <= currentTime){
     //out of time on current motor action, return steering to neutral
-    adjustMotor(neutralMotor, neutralDuration);
+    adjustMotor(pos, neutralDuration);
+    pos=pos+10;
 
   }
-  if(steeringTimerBegin + steeringTimer <= currentTime){
-    //out of time on current steering action, need to respond by returning steering to neutral position
-    adjustSteering(neutralSteering, neutralDuration);
-  }
+//  if(steeringTimerBegin + steeringTimer >= currentTime){
+//    //out of time on current steering action, need to respond by returning steering to neutral position
+//    adjustSteering(neutralSteering, neutralDuration);
+//  }
 
-  //main logic here
-  
-
+//main logic here
+//for (pos = 1000; pos <= 1500; pos += 100) { // goes from 0 degrees to 180 degrees
+  // in steps of 1 degree
+//  adjustMotor(pos, 1000);              // tell servo to go to position in variable 'pos'
+  Serial.println(pos);
+//  delay(800);                       // waits 15ms for the servo to reach the position
+// 
 }
 
 /**
@@ -127,8 +132,9 @@ void adjustSteering(int value, int duration){
 */
 void adjustMotor(int value, int duration){
   //check value input to ensure it is within allowed limits for vehicle
-  if(value <= 2000 && value >= 1000){
+  if(value <= 2000 && value >= 0){
     motor.speed(value);
+    Serial.println(value);
     motorTimer = (float)duration;
     motorTimerBegin = millis();
   }
