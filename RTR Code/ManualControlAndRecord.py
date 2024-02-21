@@ -44,7 +44,7 @@ def record_video(output_file):
     # Define the GStreamer pipeline for the CSI camera
     gstreamer_pipeline = (
         "nvarguscamerasrc ! "
-        "video/x-raw(memory:NVMM), width=(int)1920, height=(int)1080, format=(string)NV12, framerate=(fraction)30/1 ! "
+        "video/x-raw(memory:NVMM), width=(int){xres}}, height=(int){yres}}, format=(string)NV12, framerate=(fraction){frames}/1 ! "
         "nvvidconv flip-method=0 ! "
         "video/x-raw, width=(int)1920, height=(int)1080, format=(string)BGRx ! "
         "videoconvert ! "
@@ -53,7 +53,7 @@ def record_video(output_file):
 
     cap = cv2.VideoCapture(gstreamer_pipeline, cv2.CAP_GSTREAMER)
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(output_file, fourcc, 20.0, (1920, 1080))
+    out = cv2.VideoWriter(output_file, fourcc, frames, (xres, yres))
 
     if not cap.isOpened():
         print("Cannot open camera")
@@ -72,7 +72,7 @@ def record_video(output_file):
 
 def main():
     global stop_video
-    video_thread = threading.Thread(target=record_video, args=('outputnew23.avi',))
+    video_thread = threading.Thread(target=record_video, args=(filename,))
     video_thread.start()
 
     old_settings = termios.tcgetattr(sys.stdin)
@@ -110,4 +110,38 @@ def main():
         print("Exited gracefully")
 
 if __name__ == "__main__":
+    filename = input('Input filename for video recording: ')
+    filename = str(filename) + '.avi'
+
+    resolution = input('Input resolution: 1 for 1920x1080, 2 for 1280x720, 3 for 640x480\n')
+    if resolution == '1':
+        print('Resolution set to 1920x1080')
+        xres = 1920
+        yres = 1080
+    elif resolution == '2':
+        print('Resolution set to 1280x720')
+        xres = 1280
+        yres = 720
+    elif resolution == '3':
+        print('Resolution set to 640x480')
+        xres = 640
+        yres = 480
+    else:
+        print('Invalid input, setting resolution to 1920x1080')
+        resolution = '1'
+        xres = 1920
+        yres = 1080
+
+    framerate = input('Input framerate: 1 for 30fps, 2 for 60fps\n')
+    if framerate == '1':
+        print('Framerate set to 30fps')
+        frames = 30	
+    elif framerate == '2':
+        print('Framerate set to 60fps')
+        frames = 60
+    else:
+        print('Invalid input, setting framerate to 30fps')
+        framerate = '1'
+        frames = 30
+    
     main()

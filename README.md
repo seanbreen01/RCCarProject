@@ -2,6 +2,7 @@
 This is the repository for the software component of Sean Breen's Electronic and Computer Engineering Masters project. This project is concerned with the creation of a self-driving system, to autonomously control a high performance RC car and navigate a closed course scale race track. 
 ![Car](RCCar.png)
 
+<!-- TODO Change this image to one of the actual assembled car, not stock image -->
 
 
 This project is powered using an Nvidia Jetson Nano 4GB with a CSI connected PIcam, and an Arduino Uno. Leveraging the OpenCV image processing library, an input video feed is taken onboard the vehicle, processed, and reacted to in real-time by controlling the steering servo and brushless motor of the RC car.

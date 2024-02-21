@@ -18,9 +18,12 @@ import smbus
 
 # Function for corner type detection --> is hairpin, trigger these control responses
 # Function for line slope detection
+# Function for Aruco detection and storage to "list"/array etc. so when at full speed can do detections and say:
+# "passed aruco 3, then 4, then 5 etc. this is in correct (mapped) order" 
+# --> above needs more detailed consideration
 
 # Function for frame processing
-    # --> Needs to be rollnig average
+    # --> Needs to be rolling average // way to isolate bad frames due to blur, no detections etc. so system doesn't freak out and stop prematurely
     #--v avoids issue of bad detections, blurred frames, etc. 
 
 # Function to send control commands
@@ -42,5 +45,5 @@ if __name__ == "__main__":
     #Slope outputs
     #Control decisions based on slope
     #Send control decisions to Arduino
-    #Receive ACK
+    #Receive ACK --> strictly necessary or nice to have? might just be more processing and cross-talk that doesn't necessarily add a whole pile of useful functionality?
     #begin again
