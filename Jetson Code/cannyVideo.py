@@ -3,10 +3,12 @@ import numpy as np
 import matplotlib.pylab
 import time
 
-cap = cv2.VideoCapture('20231023_172936.mp4')
+cap = cv2.VideoCapture('./Videos/20231023_172936.mp4')
 
-fourcc = cv2.VideoWriter_fourcc(*'XVID')
-out = cv2.VideoWriter('output_video.mp4', fourcc, 30, (1280, 720))
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec used to write the video
+# out = cv2.VideoWriter('output_video.mp4', fourcc, 30, (1280, 720))
+
+start = time.time()
 
 while(cap.isOpened()):
 
@@ -32,14 +34,17 @@ while(cap.isOpened()):
 
                 cv2.line(frame, (x1, y1), (x2, y2), (0,0,255), 2)
 
-        cv2.imshow('Frame', frame)
-        out.write(frame)
+         #cv2.imshow('Frame', frame)
+        # out.write(frame)
         
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
     else: 
         break
 
+finish = time.time() 
+totalTime = finish - start
+print('Total time elapsed: ' + str(totalTime))
 
 cap.release()
 cv2.destroyAllWindows()
