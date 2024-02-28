@@ -44,9 +44,9 @@ def record_video(output_file):
     # Define the GStreamer pipeline for the CSI camera
     gstreamer_pipeline = (
         "nvarguscamerasrc ! "
-        "video/x-raw(memory:NVMM), width=(int){xres}}, height=(int){yres}}, format=(string)NV12, framerate=(fraction){frames}/1 ! "
+        "video/x-raw(memory:NVMM), width=(int){xres}, height=(int){yres}, format=(string)NV12, framerate=(fraction){frames}/1 ! "
         "nvvidconv flip-method=0 ! "
-        "video/x-raw, width=(int)1920, height=(int)1080, format=(string)BGRx ! "
+        "video/x-raw, width=(int){xres}, height=(int){yres}, format=(string)BGRx ! "
         "videoconvert ! "
         "video/x-raw, format=(string)BGR ! appsink"
     )
