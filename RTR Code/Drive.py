@@ -65,7 +65,7 @@ gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC3, -1, (25,25), 5)
 image_gpu = cv2.cuda_GpuMat() 
 
 
-# setup code for I2C communications
+# I2C communications to Arduino UNO
 def writeToArduino(valueToWrite):
     bytesToWrite = []
     for value in valueToWrite:
@@ -132,12 +132,13 @@ def processingPipeline(frame):
 
     # Steps ultimately leading to hough lines / canny edge / whatever line detection method is chosen
 
+    # TODO
     # If line(s) detected, can go to slope detection step
     # If not, log no lines detected, and continue to next frame
     # Check also if no lines detected has happpened before
     # If no detections for X frames, send control commands to Arduino to stop car, try to regain position on track (recovery protocol)
 
-    return True
+    slopeDetection(returnedImage)
 
 # Function for line slope detection
 def slopeDetection(processedFrameResults):
@@ -161,23 +162,30 @@ def slopeDetection(processedFrameResults):
         for x1,y1,x2,y2 in line:
             m = (y1 - y2)/(x1 - x2) # slope
             
-                        
-            if m < -0.55 and m > -5:
+            # TODO tune values of these so appropriate to left and right respectively
+            if m < -0.55: #and m > -5:
                 leftPointsX.append(x1)
                 leftPointsY.append(y1)
                 leftPointsX.append(x2)
                 leftPointsY.append(y2)
-            elif m > 0.55 and m < 5:
+            elif m > 0.55: #and m < 5:
                 rightPointsX.append(x1)
                 rightPointsY.append(y1)
                 rightPointsX.append(x2)
                 rightPointsY.append(y2)
 
+
+    # Lines if any detected, progress to determine what type of corners they represent
+    cornerTypeDetection(leftPointsX, leftPointsY, rightPointsX, rightPointsY)
+
 # Function for corner type detection --> is hairpin, trigger these control responses
-def cornerTypeDetection():
+def cornerTypeDetection(leftPointsX, leftPointsY, rightPointsX, rightPointsY):
     print("Corner type detection")
 
-    
+    # TODO calculate slope using left and right x and y points
+    slopeLeft = leftPointsX / leftPointsY
+
+    slopeRight = rightPointsX / rightPointsY
 
     # TODO add all corner conditions and tune slope values
     # Straight ahead
@@ -197,6 +205,8 @@ def cornerTypeDetection():
         print("Left curve detected")
         #--> send control commands to Arduino to slow down, turn, etc.
     
+
+
     sendControlCommands()
 
 # Function to send control commands
