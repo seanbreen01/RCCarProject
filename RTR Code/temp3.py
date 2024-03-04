@@ -1,31 +1,39 @@
 import cv2
+import sys
+import select
+import tty
+import termios
+import smbus
+import time
 
-# def gstreamer_pipeline(
-#     sensor_id=0,
-#     capture_width=1920,
-#     capture_height=1080,
-#     display_width=960,
-#     display_height=540,
-#     framerate=30,
-#     flip_method=0,
-# ):
-#     return (
-#         "nvarguscamerasrc sensor-id=%d ! "
-#         "video/x-raw(memory:NVMM), width=(int)%d, height=(int)%d, framerate=(fraction)%d/1 ! "
-#         "nvvidconv flip-method=%d ! "
-#         "video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! "
-#         "videoconvert ! "
-#         "video/x-raw, format=(string)BGR ! appsink"
-#         % (
-#             sensor_id,
-#             capture_width,
-#             capture_height,
-#             framerate,
-#             flip_method,
-#             display_width,
-#             display_height,
-#         )
-#     )
+
+# Nvidia Jetson Nano i2c Bus 0
+bus = smbus.SMBus(0)
+# This is the address we setup in the Arduino script
+address = 0x40
+
+def writeToArduino(valueToWrite):
+    bytesToWrite = []
+    for value in valueToWrite:
+        # Split each integer into two bytes (high byte and low byte)
+        highByte = (value >> 8) & 0xFF
+        lowByte = value & 0xFF
+        bytesToWrite.extend([highByte, lowByte])
+
+    # Send the byte array
+    print('Bytes: ')    #For debug
+    print(bytesToWrite)
+    bus.write_i2c_block_data(address, 0, bytesToWrite)
+
+def readNumber():
+    number = bus.read_byte(address)
+    # number = bus.read_byte_data(address, 1)
+
+    #TODO update to read from bus in correct format
+    return number
+
+def is_data():
+    return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
 
 def gstreamer_pipeline(sensor_id=0, sensor_mode=3, capture_width=640, capture_height=480, display_width=640, display_height=480, framerate=30, flip_method=2):
     return (
@@ -40,50 +48,25 @@ def gstreamer_pipeline(sensor_id=0, sensor_mode=3, capture_width=640, capture_he
 
 def main():
 
-    filename = input('Input filename for video recording: ')
-    filename = str(filename) + '.avi'
+    
+    filename = '640_30.avi'
 
-    resolution = input('Input resolution: 1 for 1920x1080, 2 for 1280x720, 3 for 640x480\n')
-    if resolution == '1':
-        print('Resolution set to 1920x1080')
-        xres = 1920
-        yres = 1080
-    elif resolution == '2':
-        print('Resolution set to 1280x720')
-        xres = 1280
-        yres = 720
-    elif resolution == '3':
-        print('Resolution set to 640x480')
-        xres = 640
-        yres = 480
-    else:
-        print('Invalid input, setting resolution to 1920x1080')
-        resolution = '1'
-        xres = 1920
-        yres = 1080
-
-    framerate = input('Input framerate: 1 for 30fps, 2 for 60fps\n')
-    if framerate == '1':
-        print('Framerate set to 30fps')
-        frames = 30	
-    elif framerate == '2':
-        print('Framerate set to 60fps')
-        frames = 60
-    else:
-        print('Invalid input, setting framerate to 30fps')
-        framerate = '1'
-        frames = 30
+    xres = 640
+    yres = 480
+    frames = 30
 
     pipeline = gstreamer_pipeline(capture_width=xres, capture_height=yres, display_width=xres, display_height=yres, framerate=frames, flip_method=2)
 
     cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+
+    old_settings = termios.tcgetattr(sys.stdin)
 
     if not cap.isOpened():
         print('no open')
         return
 
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(filename, fourcc, float(frames)-20, (xres,yres))
+    out = cv2.VideoWriter(filename, fourcc, float(frames), (xres,yres))
 
     try:
         while True:
@@ -94,13 +77,31 @@ def main():
 
             out.write(frame)
 
+            if is_data():
+                c = sys.stdin.read(1)
+                if c == '\n':  # Enter key to break the loop
+                    break
+                if c.upper() == 'W':
+                    print("Forward")    
+                    writeToArduino([1,1600,500])
+                    #Could add sliding increase to 1600 value to gradually accelerate, prob not necessary for needs here though 
+                elif c.upper() == 'A':
+                    print("Left")
+                    writeToArduino([0,110,500])
+                elif c.upper() == 'S':
+                    print("Backward")
+                    writeToArduino([1,1400,500])
+                elif c.upper() == 'D':
+                    print("Right")
+                    writeToArduino([0,60,500])
+
             #cv2.imshow('frame', frame)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            # if cv2.waitKey(1) & 0xFF == ord('q'):
+            #     break
 
     finally:
-
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
         cap.release()
         out.release()
         cv2.destroyAllWindows()
