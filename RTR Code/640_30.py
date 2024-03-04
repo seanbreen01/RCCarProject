@@ -69,6 +69,7 @@ def main():
     out = cv2.VideoWriter(filename, fourcc, float(frames), (xres,yres))
 
     try:
+        tty.setcbreak(sys.stdin.fileno())
         while True:
             ret, frame = cap.read()
             if not ret:
