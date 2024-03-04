@@ -49,7 +49,7 @@ def gstreamer_pipeline(sensor_id=0, sensor_mode=3, capture_width=640, capture_he
 def main():
 
     
-    filename = '720_30.avi'
+    filename = input('name: ') + '720_30.avi'
 
     xres = 1280
     yres = 720
