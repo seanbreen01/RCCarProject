@@ -59,22 +59,107 @@ def gstreamer_pipeline(
         )
     )
 
+# TODO Benchmark permutations
 startTime = time.time()
 
-cap = cv2.VideoCapture(gstreamer_pipeline(), cv2.CAP_GSTREAMER)
-window_title = "RCCar Video Output Debug Feed"
+# define a region of interest mask
+def region_of_interest(img, vertices):
+    """
+    Applies an image mask.
+    
+    Only keeps the region of the image defined by the polygon defined by "vertices". 
+    The rest of the image is set to black.
+    """
+    #define a blank mask
+    mask = np.zeros_like(img)   
+    
+    #define a 3 channel or 1 channel color to fill the mask with depending on the input image
+    if len(img.shape) > 2:
+        channel_count = img.shape[2]  # i.e. 3 or 4 depending on your image
+        ignore_mask_color = (255,) * channel_count
+    else:
+        ignore_mask_color = 255
+        
+    #filling pixels inside the polygon defined by "vertices" with the fill color    
+    cv2.fillPoly(mask, vertices, ignore_mask_color)
+    
+    #returning the image only where mask pixels are nonzero
+    masked_image = cv2.bitwise_and(img, mask)
+    return masked_image
+
+def drawLine(img, x, y, color=[0, 255, 0], thickness=20):
+    if len(x) == 0: 
+        return
+    
+    lineParameters = np.polyfit(x, y, 1) 
+    
+    m = lineParameters[0]
+    b = lineParameters[1]
+    
+    maxY = img.shape[0]
+    maxX = img.shape[1]
+    y1 = maxY
+    x1 = int((y1 - b)/m)
+    # Trims line draw height, used only in debug output image
+    y2 = int((maxY/4)) + 60  # note: hardcoded, sets the length of the line to half the image height + 60 pixels, original value was div by 2
+    x2 = int((y2 - b)/m)
+    cv2.line(img, (x1, y1), (x2, y2), color, thickness)
+
+
+# Helper function - split the detected lines into left and right lines
+def draw_lines(img, lines, color=[0, 255, 0], thickness=20):
+
+    leftPointsX = []
+    leftPointsY = []
+    rightPointsX = []
+    rightPointsY = []
+
+    for line in lines:
+        for x1,y1,x2,y2 in line:
+            m = (y1 - y2)/(x1 - x2) # slope
+            
+            # TODO tune these   
+            if m < -0.5:
+                leftPointsX.append(x1)
+                leftPointsY.append(y1)
+                leftPointsX.append(x2)
+                leftPointsY.append(y2)
+                
+            elif m > 0.1 and m < 2:
+                rightPointsX.append(x1)
+                rightPointsY.append(y1)
+                rightPointsX.append(x2)
+                rightPointsY.append(y2)
+
+    drawLine(img, leftPointsX, leftPointsY, color, thickness)
+        
+    drawLine(img, rightPointsX, rightPointsY, color, thickness)
+
+    return leftPointsX, leftPointsY, rightPointsX, rightPointsY 
 
 def imageProcessing(frame):
+    # Cut down image size to improve speed
+    # TODO set size appropriately
+    # frame = frame[100:720, 80:1200]
+
+    DEBUG = False
+
+    # TODO Define region of interest approrpriate to camera angle
+    # Note: order of vertices is important to get the correct mask shape
+    # region_of_interest_vertices = np.array([[80, 720],  [80, 250], [1200, 250],[1200, 720]], dtype=np.int32)
+
+    # ROI defined as trapezium for 720 video
+    region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
+
+    roi_image = region_of_interest(frame, [region_of_interest_vertices])
+    # cv2.imshow('ROI', roi_image)
+
+    gray = cv2.cvtColor(roi_image, cv2.COLOR_BGR2GRAY)
     
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
+    # Aruco detection
     corners, ids, rejected_img_points = detector.detectMarkers(gray)
-    # For debugging if necessary
-    # print("Corners" + str(corners))
-    # print("ids" + str(ids))
-    # print("rejected" + str(rejected_img_points))
 
-    if ids is not None and len(ids) > 0:
+    if ids is not None and len(ids) > 0 and DEBUG == True:
         print("Marker found")
         for i in range(len(ids)):
             # Extract corner points
@@ -91,9 +176,45 @@ def imageProcessing(frame):
             cv2.putText(frame, str(ids[i][0]), text_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
 
         cv2.imshow('Detected Markers', frame)
-    
-    else:
+    elif DEBUG == True:
         print("No marker present in frame")
+
+    # maybe need to blur here?
+    # TODO tune if needed
+    kernel_size = (9, 9)
+    sigmaX = 3
+    sigmaY = 1
+    gray = cv2.GaussianBlur(gray, ksize=kernel_size, sigmaX=sigmaX, sigmaY=sigmaY)
+
+    # Detect edges
+    canny_low_thresh = 40
+    canny_high_thresh = 120
+
+    edges = cv2.Canny(gray, canny_low_thresh, canny_high_thresh)
+
+    cv2.imshow('Edges', edges)
+
+    # TODO Declare once only and tune as needed 
+    # Hough transform
+    rho = 1                  # distance resolution in pixels of the Hough grid
+    theta = np.pi/180        # angular resolution in radians of the Hough grid
+    threshold = 1            # minimum number of votes (intersections in Hough grid cell)
+    min_line_length = 20     # minimum number of pixels making up a line
+    max_line_gap = 15        # maximum gap in pixels between connectable line segments
+
+    houghLines = cv2.HoughLinesP(edges, 1, np.pi/180, 50, maxLineGap=10)
+
+
+    if houghLines is not None:
+        line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
+        draw_lines(line_img, houghLines)
+
+        #cv2.imshow('Hough', line_img)
+
+        combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
+        # cv2.imshow('Combined', combined)
+    else:
+        combined = frame
     
     #Do some more with frame, etc. etc. 
 
@@ -102,13 +223,19 @@ def imageProcessing(frame):
 
 
     # Will actually return a command to send to the Arduino and affect some change in its movement
-    return gray
+    return combined
 
-def loopy():
+def main():
+    video_path = 'Videos/kitchenadjcamerayesaruco720_30.avi' 
+
+    cap = cv2.VideoCapture(video_path)
+
+    window_title = "RCCar Video Output Debug Feed"
 
     if cap.isOpened():
-        try:
+        
             window_handle = cv2.namedWindow(window_title, cv2.WINDOW_AUTOSIZE)
+            
 
             while True:
                 _, frame = cap.read()  # Read a frame from the camera
@@ -118,9 +245,9 @@ def loopy():
                 
 
                 if cv2.getWindowProperty(window_title, cv2.WND_PROP_AUTOSIZE) >= 0:
-                    #cv2.imshow(window_title, processed_frame)
+                    cv2.imshow(window_title, processed_frame)
                     #Not needed if not showing output frames in actual implementation
-                    print('Output window for Debugging')
+                    
 
                 else:
                     break
@@ -128,8 +255,11 @@ def loopy():
 
                 if keycode == 27 or keycode == ord('q'): #allow user to quit gracefully
                     break
-        finally:  
+        
             cap.release()
             cv2.destroyAllWindows()
     else:
         print("Error")
+
+if __name__ == '__main__':
+    main()

@@ -187,7 +187,7 @@ def cornerTypeDetection(leftPointsX, leftPointsY, rightPointsX, rightPointsY):
 
     slopeRight = rightPointsX / rightPointsY
 
-    # TODO add all corner conditions and tune slope values
+    # TODO add all corner conditions and tune slope values, obviously 100 there now is way off
     # Straight ahead
     if slopeLeft >= 100 and slopeRight >= 100:
         # commands to steering and motor to continue straight ahead, maybe increase speed?
