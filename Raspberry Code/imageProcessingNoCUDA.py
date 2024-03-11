@@ -114,6 +114,10 @@ def draw_lines(img, lines, color=[0, 255, 0], thickness=20):
     rightPointsX = []
     rightPointsY = []
 
+    # TODO
+    mLeft = []
+    mRight = []
+
     for line in lines:
         for x1,y1,x2,y2 in line:
             m = (y1 - y2)/(x1 - x2) # slope
@@ -124,16 +128,31 @@ def draw_lines(img, lines, color=[0, 255, 0], thickness=20):
                 leftPointsY.append(y1)
                 leftPointsX.append(x2)
                 leftPointsY.append(y2)
+                mLeft.append(m)
                 
             elif m > 0.1 and m < 2:
                 rightPointsX.append(x1)
                 rightPointsY.append(y1)
                 rightPointsX.append(x2)
                 rightPointsY.append(y2)
+                mRight.append(m)
 
     drawLine(img, leftPointsX, leftPointsY, color, thickness)
         
     drawLine(img, rightPointsX, rightPointsY, color, thickness)
+
+    # TODO in progress here, my additions
+    # TODO this slope calculation is not working as intended
+    # TOFIX needs to be proper m = (y2 - y1)/(x2 - x1) calculation as above. 
+    # slopeLeftPoints = [x/y for x,y in zip(leftPointsX, leftPointsY)]
+    # slopeLeftPoints = sum(slopeLeftPoints)/len(slopeLeftPoints)
+
+    
+    # avg_left_slope = np.mean(mLeft)
+    # if avg_left_slope < -4:
+    #     cv2.waitKey(0)
+
+   # print("Averge slope left line points", avg_left_slope)
 
     return leftPointsX, leftPointsY, rightPointsX, rightPointsY 
 
@@ -203,6 +222,10 @@ def imageProcessing(frame):
     max_line_gap = 15        # maximum gap in pixels between connectable line segments
 
     houghLines = cv2.HoughLinesP(edges, 1, np.pi/180, 50, maxLineGap=10)
+    # TODO find out about extracting only the longest lines and if this would be representative of the lane lines?
+    # houghLines = np.sort(houghLines)
+    # print(houghLines)
+    # print("Length:", len(houghLines))
 
 
     if houghLines is not None:
