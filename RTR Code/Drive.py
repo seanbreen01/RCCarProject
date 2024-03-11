@@ -18,7 +18,10 @@ yres = 720
 framerate = 30
 
 # Aruco marker detection variable
-count = 0
+counter = 0
+
+# Debug variable
+DEBUG = False
 
 # Nvidia Jetson Nano i2c Bus 0
 bus = smbus.SMBus(0)
@@ -60,11 +63,12 @@ parameters = aruco.DetectorParameters_create()
 
 # CUDA setup stuff
 # TODO add all necessary functions and filters etc. here
-gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC3, -1, ksize=(9,9), sigmaX=3, sigmaY=1) #TODO 8UC3 - what is this?
+gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=3, sigma2=1) #defines source image as 8-bit single colour channel (grayscale, and -1 is destination the same)
+
 
 cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=40, high_thresh=120)
 
-houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLineGap=10, minLineLength=50) # TODO what is doSort and tune further
+houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) # TODO what is doSort, maxLines and tune further
 
 #other filters etc. here 
 image_gpu = cv2.cuda_GpuMat() 
@@ -92,8 +96,6 @@ def readFromArduino():
     return number
 
 
-
-
 # Video (GStreamer pipeline) setup
     #--> need to identify framerate, resolution, etc. --> real world testing to inform, can be gradually refined
 def gstreamer_pipeline(sensor_id=0, sensor_mode=3, capture_width=1280, capture_height=720, display_width=640, display_height=480, framerate=30, flip_method=2):
@@ -109,6 +111,7 @@ def gstreamer_pipeline(sensor_id=0, sensor_mode=3, capture_width=1280, capture_h
 
 # define a region of interest mask
 # TODO use CUDA for this? i.e. bitwise_and operation
+# TODO strip unnecessary code from this function
 def region_of_interest(img, vertices):
     """
     Applies an image mask.
@@ -130,7 +133,8 @@ def region_of_interest(img, vertices):
     cv2.fillPoly(mask, vertices, ignore_mask_color)
     
     #returning the image only where mask pixels are nonzero
-    masked_image = cv2.bitwise_and(img, mask)
+    # masked_image = cv2.bitwise_and(img, mask)
+    masked_image = cv2.cuda.bitwise_and(img, mask)
     return masked_image
 
 def drawLine(img, x, y, color=[0, 255, 0], thickness=20):
@@ -153,7 +157,8 @@ def drawLine(img, x, y, color=[0, 255, 0], thickness=20):
 
 # Helper function - split the detected lines into left and right lines
 def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
-
+    global DEBUG
+    
     leftPointsX = []
     leftPointsY = []
     rightPointsX = []
@@ -167,7 +172,7 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
         for x1,y1,x2,y2 in line:
             m = (y1 - y2)/(x1 - x2) # slope
             
-            # TODO tune these   
+            # TODO tune these m values, especial care needed
             if m < -0.5:
                 leftPointsX.append(x1)
                 leftPointsY.append(y1)
@@ -182,10 +187,10 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
                 rightPointsY.append(y2)
                 mRight.append(m)
     
-    # TODO remove from non debugging code, or add control flag
-    drawLine(img, leftPointsX, leftPointsY, color, thickness)
-        
-    drawLine(img, rightPointsX, rightPointsY, color, thickness)
+    if DEBUG == True:
+        drawLine(img, leftPointsX, leftPointsY, color, thickness)
+            
+        drawLine(img, rightPointsX, rightPointsY, color, thickness)
 
     # TODO in progress here, my additions
     # TODO this slope calculation is not working as intended
@@ -206,7 +211,8 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
 
 def processingPipeline(frame):
 
-    DEBUG = False
+    global DEBUG
+    global counter
 
     # ROI defined as trapezium for 720 video
     region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
@@ -214,39 +220,17 @@ def processingPipeline(frame):
     roi_image = region_of_interest(frame, [region_of_interest_vertices])
     # cv2.imshow('ROI', roi_image)
 
-    image_gpu.upload(roi_image)
+    # image_gpu.upload(roi_image)
+
+    image_gpu.upload(frame)
 
     gray_gpu = cv2.cuda.cvtColor(image_gpu, cv2.COLOR_BGR2GRAY)
 
-    
-
-    blurred_gpu = gaussian_filter.apply(gray_gpu)
-
-    cannyEdgesDetected_gpu = cannyEdgeDetector.detect(blurred_gpu)
-
-    houghlines_gpu = houghLinesDetector.detect(cannyEdgesDetected_gpu)
-
-    houghLines = houghlines_gpu.download()
-
-    if houghLines is not None:
-        # TODO edges refer to canny edges, need to download or see if move to CPU ops should occur by this point
-        line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
-        leftLaneSlope, rightLaneSlope = laneSplit(line_img, houghLines)
-
-        #cv2.imshow('Hough', line_img)
-
-        combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
-        # cv2.imshow('Combined', combined)
-    else:
-        combined = frame
-
-    returnedImage = gray_gpu.download()
-
     #TODO how often
     # Don't want to detect Aruco markers every frame
-    if count % 5 == 0:
-        
-        corners, ids, rejected_img_points = aruco.detectMarkers(returnedImage, aruco_dict, parameters=parameters)
+    if counter % 10 == 0:
+        print("here")
+        corners, ids, rejected_img_points = aruco.detectMarkers(gray_gpu.download(), aruco_dict, parameters=parameters)
         if ids is not None and len(ids) > 0 and DEBUG == True:
             print("Marker found")
             for i in range(len(ids)):
@@ -270,8 +254,57 @@ def processingPipeline(frame):
                 #TODO check aruco marker against stored sequence if this exists?
 
         
-        count = 0
-    count += 1
+        counter = 0
+    counter += 1
+
+    blurred_gpu = gaussian_filter.apply(gray_gpu)
+
+    cannyEdgesDetected_gpu = cannyEdgeDetector.detect(blurred_gpu)
+
+    edges = cannyEdgesDetected_gpu.download()
+
+    houghLines_cpu = cv2.HoughLinesP(edges, 1, np.pi/180, 50, maxLineGap=10)
+    # Returns data in polar form, pain to work with and opertions needed for conversion may outweigh benefits of GPU acceleration
+    # TODO investigate if time available
+    # houghlines_gpu = houghLinesDetector.detect(cannyEdgesDetected_gpu)
+
+    # houghLines = houghlines_gpu.download()
+    # temp = []
+    # for line in houghLines:
+
+    #     rho, theta = line[0]
+        
+
+    #     a = np.cos(theta)
+    #     b = np.sin(theta)
+        
+    #     x0 = a * rho
+    #     y0 = b * rho
+    #     x1 = int(x0 + 1000 * (-b))
+    #     y1 = int(y0 + 1000 * (a))
+    #     x2 = int(x0 - 1000 * (-b))
+    #     y2 = int(y0 - 1000 * (a))
+    #     temp.append(x1)
+    #     temp.append(x2)
+    #     temp.append(y1)
+    #     temp.append(y2)
+
+
+    if houghLines_cpu is not None:
+        # TODO edges refer to canny edges, need to download or see if move to CPU ops should occur by this point
+        line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
+        leftLaneSlope, rightLaneSlope = laneSplit(line_img, houghLines_cpu)
+
+        #cv2.imshow('Hough', line_img)
+
+        combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
+        # cv2.imshow('Combined', combined)
+    else:
+        combined = frame
+
+    # returnedImage = gray_gpu.download()
+
+    
     
 
     # Steps ultimately leading to hough lines / canny edge / whatever line detection method is chosen
@@ -281,73 +314,68 @@ def processingPipeline(frame):
     # If not, log no lines detected, and continue to next frame
     # Check also if no lines detected has happpened before
     # If no detections for X frames, send control commands to Arduino to stop car, try to regain position on track (recovery protocol)
+        
+    # return combined
+    # slopeDetection(returnedImage)
 
-    slopeDetection(returnedImage)
+    cornerTypeDetection(leftLaneSlope, rightLaneSlope)
 
 # Function for line slope detection
-def slopeDetection(processedFrameResults):
-    print("Slope detection")
-    # TODO Tune parameters here
-    rho = 1                  # distance resolution in pixels of the Hough grid
-    theta = np.pi/180        # angular resolution in radians of the Hough grid
-    threshold = 1            # minimum number of votes (intersections in Hough grid cell)
-    min_line_len = 20        # minimum number of pixels making up a line
-    max_line_gap = 15        # maximum gap in pixels between connectable line segments
 
-
-    lines = cv2.HoughLinesP(processedFrameResults, rho, theta, threshold, min_line_len, max_line_gap) 
-
-    leftPointsX = []
-    leftPointsY = []
-    rightPointsX = []
-    rightPointsY = []
-
-    for line in lines:
-        for x1,y1,x2,y2 in line:
-            m = (y1 - y2)/(x1 - x2) # slope
-            
-            # TODO tune values of these so appropriate to left and right respectively
-            if m < -0.55: #and m > -5:
-                leftPointsX.append(x1)
-                leftPointsY.append(y1)
-                leftPointsX.append(x2)
-                leftPointsY.append(y2)
-            elif m > 0.55: #and m < 5:
-                rightPointsX.append(x1)
-                rightPointsY.append(y1)
-                rightPointsX.append(x2)
-                rightPointsY.append(y2)
-
-
-    # Lines if any detected, progress to determine what type of corners they represent
-    cornerTypeDetection(leftPointsX, leftPointsY, rightPointsX, rightPointsY)
 
 # Function for corner type detection --> is hairpin, trigger these control responses
-def cornerTypeDetection(leftPointsX, leftPointsY, rightPointsX, rightPointsY):
+def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     print("Corner type detection")
 
-    # TODO calculate slope using left and right x and y points
-    slopeLeft = leftPointsX / leftPointsY
+    # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
 
-    slopeRight = rightPointsX / rightPointsY
+    print("leftLaneSlope", leftLaneSlope)
 
-    # TODO add all corner conditions and tune slope values, obviously 100 there now is way off
+    print("rightLaneSlope", rightLaneSlope)
+
+    # TODO tune slope values, obviously values there now are way off
     # Straight ahead
-    if slopeLeft >= 100 and slopeRight >= 100:
+    if leftLaneSlope >= 100 and rightLaneSlope >= 100:
         # commands to steering and motor to continue straight ahead, maybe increase speed?
         print("Straight ahead")
+        # TODO tune so its not 'overly' sensitive, adjust only when needed, not if its just not perfectly centered
+        if leftLaneSlope > rightLaneSlope:
+            # recenter on track, too far left
+            print("shift right slightly")
+        elif rightLaneSlope > leftLaneSlope:
+            # recenter on track, too far right
+            print("shift left slightly")
+
         #TODO if mapping track
         # --> save corner type to array, & corresponding timestamp/
-        cornerType = "Left Hairppin" # Have this be a key for a dictionary of corner types and their associated control commands
-        
+        cornerType = "Left Hairpin" # Have this be a key for a dictionary of corner types and their associated control commands
 
-    elif slopeLeft > 0.5 and slopeRight < -0.5:
-        print("Hairpin detected")
-        #--> send control commands to Arduino to slow down, turn, etc.
+    elif leftLaneSlope > 0.6 and rightLaneSlope < 0:
+        print("Gentle Right")
 
-    elif slopeLeft > 0.5 and slopeRight > 0.5:
-        print("Left curve detected")
+    elif leftLaneSlope > 0.6 and rightLaneSlope < 0:
+        print("Gentle Left") 
+
+    elif leftLaneSlope > 0.6 and rightLaneSlope < 0:
+        print("90 Degree Right")
+            
+    elif leftLaneSlope > 0.6 and rightLaneSlope < 0:
+        print("90 Degree Left")    
+
+    elif leftLaneSlope > 0.5 and rightLaneSlope < -0.5:
+        print("Right Entry Hairpin detected")
         #--> send control commands to Arduino to slow down, turn, etc.
+    elif leftLaneSlope > 0.5 and rightLaneSlope < -0.5:
+        print("Left Entry Hairpin detected")
+    
+
+    elif leftLaneSlope == None and rightLaneSlope is not None:
+        print("No left lane, off track to left side of course (left lane incorrectly identified as right lane?)")
+    elif rightLaneSlope == None and leftLaneSlope is not None:
+        print("No right lane, off track to right side of course (right lane incorrectly identified as left lane?)")
+    elif leftLaneSlope and rightLaneSlope is None:
+        print("Completely off track, engage recovery protocol")
+
     
 
 
@@ -357,9 +385,12 @@ def cornerTypeDetection(leftPointsX, leftPointsY, rightPointsX, rightPointsY):
     #--> non-blocking if series of commands is needed in eventual 'racing-line' following implementation
     #--> format of sent commands already known
 def sendControlCommands():
-    writeToArduino([0, 80, 1000])   #steering control
-    writeToArduino([1, 1600, 1000]) #motor control
-
+    try:
+        writeToArduino([0, 80, 1000])   #steering control
+        writeToArduino([1, 1600, 1000]) #motor control
+    except OSError:
+        print("Command to Arudino failed to transmit")
+        #TODO what to do if get multiple in a row, indicating I2C failure 
 
 
 # Function for Aruco detection and storage to "list"/array etc. so when at full speed can do detections and say:
@@ -380,11 +411,17 @@ def automatedRecovery():
     #--> pre-written series of inputs until line(s) detected again and Aruco markers in sequence expected
     #--R if 2 aruco markers are reverse of what should be seen, navigating track wrong direction, turn and re-continue in correct way
 
+    #TODO call send commands function with predefined maneouver loop until track re-located and direction of rotation about it validated
+
 def main():
     print('Main loop')
     pipeline = gstreamer_pipeline(capture_width=xres, capture_height=yres, display_width=xres, display_height=yres, framerate=framerate, flip_method=2)
 
-    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+    # cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+
+    video_path = 'Videos/kitchenadjcamerayesaruco720_30.avi' 
+
+    cap = cv2.VideoCapture(video_path)
 
     if cap.isOpened():
         try:
@@ -395,6 +432,8 @@ def main():
                 # Then pass this frame in to processing 
                 processed_frame_results = processingPipeline(frame)
                 # ^ Will return arrays/lists with points that equate to detected lines
+
+                # cv2.imshow("Debug", processed_frame_results)
 
                 keycode = cv2.waitKey(10) & 0xFF
 
