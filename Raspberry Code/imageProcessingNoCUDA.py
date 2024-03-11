@@ -29,9 +29,13 @@ ARUCO_DICT = {
 
 # Below works for opencv versions 4.7.x and beyond
 
-aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
-parameters = aruco.DetectorParameters()
-detector = aruco.ArucoDetector(aruco_dict, parameters)
+# aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
+# parameters = aruco.DetectorParameters()
+# detector = aruco.ArucoDetector(aruco_dict, parameters)
+
+aruco_dict = aruco.Dictionary_get(ARUCO_DICT["DICT_4X4_50"])
+# Initialize the detector parameters using default values
+parameters = aruco.DetectorParameters_create()
 
 def gstreamer_pipeline(
     capture_width=1280, #lowered from 1920x1080 for improved speed
@@ -176,7 +180,7 @@ def imageProcessing(frame):
     gray = cv2.cvtColor(roi_image, cv2.COLOR_BGR2GRAY)
     
     # Aruco detection
-    corners, ids, rejected_img_points = detector.detectMarkers(gray)
+    corners, ids, rejected_img_points = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
     if ids is not None and len(ids) > 0 and DEBUG == True:
         print("Marker found")

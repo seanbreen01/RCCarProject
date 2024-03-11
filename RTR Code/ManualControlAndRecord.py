@@ -41,8 +41,8 @@ def is_data():
 
 def record_video(output_file):
 
-    xres = 640
-    yres = 480
+    xres = 1920
+    yres = 1080
     frames = 30
 
     global stop_video
