@@ -1,6 +1,5 @@
 ##This will be main final driving control, and detection logic script when complete
 import sys
-import threading
 import cv2
 import cv2.aruco as aruco
 import smbus
@@ -16,7 +15,7 @@ slopeRight = 0
 # Video input setup, will alter based on testing results
 xres = 1280	
 yres = 720
-framerate = 60
+framerate = 30
 
 # Aruco marker detection variable
 count = 0
@@ -60,7 +59,13 @@ aruco_dict = aruco.Dictionary_get(ARUCO_DICT["DICT_4X4_50"])
 parameters = aruco.DetectorParameters_create()
 
 # CUDA setup stuff
-gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC3, -1, (25,25), 5)
+# TODO add all necessary functions and filters etc. here
+gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC3, -1, ksize=(9,9), sigmaX=3, sigmaY=1) #TODO 8UC3 - what is this?
+
+cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=40, high_thresh=120)
+
+houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLineGap=10, minLineLength=50) # TODO what is doSort and tune further
+
 #other filters etc. here 
 image_gpu = cv2.cuda_GpuMat() 
 
@@ -75,7 +80,7 @@ def writeToArduino(valueToWrite):
         bytesToWrite.extend([highByte, lowByte])
 
     # Send the byte array
-    print('Bytes: ')    #For debug
+    print('Bytes: ')    #TODO add flag for debug
     print(bytesToWrite)
     bus.write_i2c_block_data(address, 0, bytesToWrite)
 
@@ -90,42 +95,181 @@ def readFromArduino():
 
 
 # Video (GStreamer pipeline) setup
-    #--> need to idetify framerate, resolution, etc. --> real world testing to inform, can be gradually refined
-def gstreamer_pipeline():
+    #--> need to identify framerate, resolution, etc. --> real world testing to inform, can be gradually refined
+def gstreamer_pipeline(sensor_id=0, sensor_mode=3, capture_width=1280, capture_height=720, display_width=640, display_height=480, framerate=30, flip_method=2):
     return (
-        "nvarguscamerasrc ! "
-        "video/x-raw(memory:NVMM), width=(int){xres}, height=(int){yres}, format=(string)NV12, framerate=(fraction){frames}/1 ! "
-        "nvvidconv flip-method=0 ! "
-        "video/x-raw, width=(int){xres}, height=(int){yres}, format=(string)BGRx ! "
-        "videoconvert ! "
-        "video/x-raw, format=(string)BGR ! appsink")
+        f'nvarguscamerasrc sensor-id={sensor_id} sensor-mode={sensor_mode} ! '
+        f'video/x-raw(memory:NVMM), width=(int){capture_width}, height=(int){capture_height}, '
+        f'format=(string)NV12, framerate=(fraction){framerate}/1 ! '
+        f'nvvidconv flip-method={flip_method} ! '
+        f'video/x-raw, width=(int){display_width}, height=(int){display_height}, format=(string)BGRx ! '
+        f'videoconvert ! '
+        f'video/x-raw, format=(string)BGR ! appsink'
+    )
 
-## have here as separate function for now, but will be integrated into main loop??
-def videoCapture():
-    cap = cv2.VideoCapture(gstreamer_pipeline, cv2.CAP_GSTREAMER)
-    if not cap.isOpened():
-        print("Cannot open camera")
-        exit()
-    return cap
+# define a region of interest mask
+# TODO use CUDA for this? i.e. bitwise_and operation
+def region_of_interest(img, vertices):
+    """
+    Applies an image mask.
+    
+    Only keeps the region of the image defined by the polygon defined by "vertices". 
+    The rest of the image is set to black.
+    """
+    #define a blank mask
+    mask = np.zeros_like(img)   
+    
+    #define a 3 channel or 1 channel color to fill the mask with depending on the input image
+    if len(img.shape) > 2:
+        channel_count = img.shape[2]  # i.e. 3 or 4 depending on your image
+        ignore_mask_color = (255,) * channel_count
+    else:
+        ignore_mask_color = 255
+        
+    #filling pixels inside the polygon defined by "vertices" with the fill color    
+    cv2.fillPoly(mask, vertices, ignore_mask_color)
+    
+    #returning the image only where mask pixels are nonzero
+    masked_image = cv2.bitwise_and(img, mask)
+    return masked_image
+
+def drawLine(img, x, y, color=[0, 255, 0], thickness=20):
+    if len(x) == 0: 
+        return
+    
+    lineParameters = np.polyfit(x, y, 1) 
+    
+    m = lineParameters[0]
+    b = lineParameters[1]
+    
+    maxY = img.shape[0]
+    maxX = img.shape[1]
+    y1 = maxY
+    x1 = int((y1 - b)/m)
+    # Trims line draw height, used only in debug output image
+    y2 = int((maxY/4)) + 60  # note: hardcoded, sets the length of the line to half the image height + 60 pixels, original value was div by 2
+    x2 = int((y2 - b)/m)
+    cv2.line(img, (x1, y1), (x2, y2), color, thickness)
+
+# Helper function - split the detected lines into left and right lines
+def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
+
+    leftPointsX = []
+    leftPointsY = []
+    rightPointsX = []
+    rightPointsY = []
+
+    # TODO
+    mLeft = []
+    mRight = []
+
+    for line in lines:
+        for x1,y1,x2,y2 in line:
+            m = (y1 - y2)/(x1 - x2) # slope
+            
+            # TODO tune these   
+            if m < -0.5:
+                leftPointsX.append(x1)
+                leftPointsY.append(y1)
+                leftPointsX.append(x2)
+                leftPointsY.append(y2)
+                mLeft.append(m)
+                
+            elif m > 0.1 and m < 2:
+                rightPointsX.append(x1)
+                rightPointsY.append(y1)
+                rightPointsX.append(x2)
+                rightPointsY.append(y2)
+                mRight.append(m)
+    
+    # TODO remove from non debugging code, or add control flag
+    drawLine(img, leftPointsX, leftPointsY, color, thickness)
+        
+    drawLine(img, rightPointsX, rightPointsY, color, thickness)
+
+    # TODO in progress here, my additions
+    # TODO this slope calculation is not working as intended
+    # TOFIX needs to be proper m = (y2 - y1)/(x2 - x1) calculation as above. 
+    # slopeLeftPoints = [x/y for x,y in zip(leftPointsX, leftPointsY)]
+    # slopeLeftPoints = sum(slopeLeftPoints)/len(slopeLeftPoints)
+
+    
+    avg_left_slope = np.mean(mLeft)
+    avg_right_slope = np.mean(mRight)
+
+    # if avg_left_slope < -4:
+    #     cv2.waitKey(0)
+
+   # print("Averge slope left line points", avg_left_slope)
+
+    return avg_left_slope, avg_right_slope
 
 def processingPipeline(frame):
-    image_gpu.upload(frame)
+
+    DEBUG = False
+
+    # ROI defined as trapezium for 720 video
+    region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
+
+    roi_image = region_of_interest(frame, [region_of_interest_vertices])
+    # cv2.imshow('ROI', roi_image)
+
+    image_gpu.upload(roi_image)
+
     gray_gpu = cv2.cuda.cvtColor(image_gpu, cv2.COLOR_BGR2GRAY)
+
+    
+
+    blurred_gpu = gaussian_filter.apply(gray_gpu)
+
+    cannyEdgesDetected_gpu = cannyEdgeDetector.detect(blurred_gpu)
+
+    houghlines_gpu = houghLinesDetector.detect(cannyEdgesDetected_gpu)
+
+    houghLines = houghlines_gpu.download()
+
+    if houghLines is not None:
+        # TODO edges refer to canny edges, need to download or see if move to CPU ops should occur by this point
+        line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
+        leftLaneSlope, rightLaneSlope = laneSplit(line_img, houghLines)
+
+        #cv2.imshow('Hough', line_img)
+
+        combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
+        # cv2.imshow('Combined', combined)
+    else:
+        combined = frame
 
     returnedImage = gray_gpu.download()
 
+    #TODO how often
     # Don't want to detect Aruco markers every frame
-    if count % 10 == 0:
+    if count % 5 == 0:
         
         corners, ids, rejected_img_points = aruco.detectMarkers(returnedImage, aruco_dict, parameters=parameters)
-        if ids is not None and len(ids) > 0:
-            print('Aruco identified:', + ids)
-            #check aruco marker against stored sequence if this exists?
+        if ids is not None and len(ids) > 0 and DEBUG == True:
+            print("Marker found")
+            for i in range(len(ids)):
+                # Extract corner points
+                corner = corners[i][0]
+                
+                # Draw bounding box
+                rect = cv2.minAreaRect(corner)
+                box = cv2.boxPoints(rect)
+                box = np.int0(box)
+                cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
 
-        # For debugging if needed
-        # print("Corners" + str(corners))
-        # print("ids" + str(ids))
-        # print("rejected" + str(rejected_img_points))
+                text_position = (int(corner[0][0]), int(corner[0][1]))
+                # Draw marker ID
+                cv2.putText(frame, str(ids[i][0]), text_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+
+            cv2.imshow('Detected Markers', frame)
+        elif DEBUG == True:
+            print("No marker present in frame")
+
+                #TODO check aruco marker against stored sequence if this exists?
+
+        
         count = 0
     count += 1
     
@@ -238,7 +382,9 @@ def automatedRecovery():
 
 def main():
     print('Main loop')
-    cap = videoCapture()
+    pipeline = gstreamer_pipeline(capture_width=xres, capture_height=yres, display_width=xres, display_height=yres, framerate=framerate, flip_method=2)
+
+    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
 
     if cap.isOpened():
         try:

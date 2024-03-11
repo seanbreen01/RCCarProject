@@ -39,7 +39,7 @@ def gstreamer_pipeline(
     display_width=640,
     display_height=480,
     framerate=60,   #increased from 30 again to improve speed
-    flip_method=6,
+    flip_method=2,
 ):
     return (
         "nvarguscamerasrc ! "
@@ -107,7 +107,7 @@ def drawLine(img, x, y, color=[0, 255, 0], thickness=20):
 
 
 # Helper function - split the detected lines into left and right lines
-def draw_lines(img, lines, color=[0, 255, 0], thickness=20):
+def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
 
     leftPointsX = []
     leftPointsY = []
@@ -136,7 +136,8 @@ def draw_lines(img, lines, color=[0, 255, 0], thickness=20):
                 rightPointsX.append(x2)
                 rightPointsY.append(y2)
                 mRight.append(m)
-
+    
+    # TODO remove from non debugging code, or add control flag
     drawLine(img, leftPointsX, leftPointsY, color, thickness)
         
     drawLine(img, rightPointsX, rightPointsY, color, thickness)
@@ -148,13 +149,15 @@ def draw_lines(img, lines, color=[0, 255, 0], thickness=20):
     # slopeLeftPoints = sum(slopeLeftPoints)/len(slopeLeftPoints)
 
     
-    # avg_left_slope = np.mean(mLeft)
+    avg_left_slope = np.mean(mLeft)
+    avg_right_slope = np.mean(mRight)
+
     # if avg_left_slope < -4:
     #     cv2.waitKey(0)
 
    # print("Averge slope left line points", avg_left_slope)
 
-    return leftPointsX, leftPointsY, rightPointsX, rightPointsY 
+    return avg_left_slope, avg_right_slope
 
 def imageProcessing(frame):
     # Cut down image size to improve speed
@@ -230,7 +233,7 @@ def imageProcessing(frame):
 
     if houghLines is not None:
         line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
-        draw_lines(line_img, houghLines)
+        leftLaneSlope, rightLaneSlope = laneSplit(line_img, houghLines)
 
         #cv2.imshow('Hough', line_img)
 
