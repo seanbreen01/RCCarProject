@@ -110,7 +110,7 @@ def gstreamer_pipeline(sensor_id=0, sensor_mode=3, capture_width=1280, capture_h
     )
 
 # define a region of interest mask
-# TODO use CUDA for this? i.e. bitwise_and operation
+
 # TODO strip unnecessary code from this function
 def region_of_interest(img, vertices):
     """
@@ -291,10 +291,10 @@ def processingPipeline(frame):
 
 
     if houghLines_cpu is not None:
-        # TODO edges refer to canny edges, need to download or see if move to CPU ops should occur by this point
         line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
         leftLaneSlope, rightLaneSlope = laneSplit(line_img, houghLines_cpu)
 
+        # TODO remove from final code, including ability to combine
         #cv2.imshow('Hough', line_img)
 
         combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
@@ -350,23 +350,24 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
         # --> save corner type to array, & corresponding timestamp/
         cornerType = "Left Hairpin" # Have this be a key for a dictionary of corner types and their associated control commands
 
-    elif leftLaneSlope > 0.6 and rightLaneSlope < 0:
-        print("Gentle Right")
+    elif leftLaneSlope < -1 and rightLaneSlope < -1:
+        print("Gentle Right - both negative slope detected, [but left lane is steeper than right lane, so gentle right turn detected]???")
 
-    elif leftLaneSlope > 0.6 and rightLaneSlope < 0:
-        print("Gentle Left") 
+    elif leftLaneSlope > 1 and rightLaneSlope > 1:
+        print("Gentle Left - both positive slopes ") 
 
-    elif leftLaneSlope > 0.6 and rightLaneSlope < 0:
-        print("90 Degree Right")
+    elif leftLaneSlope < -10 and rightLaneSlope < - 10:
+        print("90 Degree Right - both strongly negative slopes")
             
-    elif leftLaneSlope > 0.6 and rightLaneSlope < 0:
-        print("90 Degree Left")    
+    elif leftLaneSlope > 10 and rightLaneSlope > 10:
+        print("90 Degree Left - both strongly positive slopes")    
 
-    elif leftLaneSlope > 0.5 and rightLaneSlope < -0.5:
-        print("Right Entry Hairpin detected")
+    # TODO logic for hairpins seems dodgy at best, review with test footage
+    elif leftLaneSlope < -10 and rightLaneSlope > 100:
+        print("Right Entry Hairpin detected - left lane strongly negative, right lane almost flat horizontal line (close to infinite slope)")
         #--> send control commands to Arduino to slow down, turn, etc.
-    elif leftLaneSlope > 0.5 and rightLaneSlope < -0.5:
-        print("Left Entry Hairpin detected")
+    elif leftLaneSlope > 100 and rightLaneSlope > 10:
+        print("Left Entry Hairpin  - right lane strongly positive, left lane almost flat horizontal line (close to infinite slope)")
     
 
     elif leftLaneSlope == None and rightLaneSlope is not None:
