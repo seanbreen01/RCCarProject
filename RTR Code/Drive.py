@@ -215,6 +215,8 @@ def processingPipeline(frame):
     global counter
 
     # ROI defined as trapezium for 720 video
+    # TODO move outside of function, and make it a global variable?
+    # No need to define every time function is called
     region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
 
     roi_image = region_of_interest(frame, [region_of_interest_vertices])
@@ -291,6 +293,7 @@ def processingPipeline(frame):
 
 
     if houghLines_cpu is not None:
+        # TODO can this definiton be moved outside of function?
         line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
         leftLaneSlope, rightLaneSlope = laneSplit(line_img, houghLines_cpu)
 
@@ -317,6 +320,8 @@ def processingPipeline(frame):
         
     # return combined
     # slopeDetection(returnedImage)
+        
+    #TODO if in recovery procedure, don't detect corner type, create flag for this
 
     cornerTypeDetection(leftLaneSlope, rightLaneSlope)
 
@@ -378,14 +383,16 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
         print("Completely off track, engage recovery protocol")
 
     
+    # TODO define corner types and their associated control commands
 
-
-    sendControlCommands()
+    sendControlCommands(cornerType)
 
 # Function to send control commands
     #--> non-blocking if series of commands is needed in eventual 'racing-line' following implementation
     #--> format of sent commands already known
-def sendControlCommands():
+def sendControlCommands(cornerType = None):
+# TODO dictionary of corner types and their associated control commands
+
     try:
         writeToArduino([0, 80, 1000])   #steering control
         writeToArduino([1, 1600, 1000]) #motor control

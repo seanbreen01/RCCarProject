@@ -105,7 +105,7 @@ def drawLine(img, x, y, color=[0, 255, 0], thickness=20):
     y1 = maxY
     x1 = int((y1 - b)/m)
     # Trims line draw height, used only in debug output image
-    y2 = int((maxY/4)) + 60  # note: hardcoded, sets the length of the line to half the image height + 60 pixels, original value was div by 2
+    y2 = int((maxY/8)) + 60  # note: hardcoded, sets the length of the line to half the image height + 60 pixels, original value was div by 2
     x2 = int((y2 - b)/m)
     cv2.line(img, (x1, y1), (x2, y2), color, thickness)
 
@@ -127,14 +127,14 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
             m = (y1 - y2)/(x1 - x2) # slope
             
             # TODO tune these   
-            if m < -0.5:
+            if m < -0.1:
                 leftPointsX.append(x1)
                 leftPointsY.append(y1)
                 leftPointsX.append(x2)
                 leftPointsY.append(y2)
                 mLeft.append(m)
                 
-            elif m > 0.1 and m < 2:
+            elif m > 0.1: #and m < 2:
                 rightPointsX.append(x1)
                 rightPointsY.append(y1)
                 rightPointsX.append(x2)
@@ -168,22 +168,41 @@ def imageProcessing(frame):
     # TODO set size appropriately
     # frame = frame[100:720, 80:1200]
 
-    DEBUG = False
+    DEBUG = True
 
     # TODO Define region of interest approrpriate to camera angle
     # Note: order of vertices is important to get the correct mask shape
     # region_of_interest_vertices = np.array([[80, 720],  [80, 250], [1200, 250],[1200, 720]], dtype=np.int32)
 
     # ROI defined as trapezium for 720 video
-    region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
+    # region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
+    region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1180,720], [980,300],[300,300], [100,720],  [0,720]], dtype=np.int32)
 
-    roi_image = region_of_interest(frame, [region_of_interest_vertices])
-    # cv2.imshow('ROI', roi_image)
+    
 
-    gray = cv2.cvtColor(roi_image, cv2.COLOR_BGR2GRAY)
+    # TODO re-introduce roi_image to the rest of the processing
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
     # Aruco detection
     # corners, ids, rejected_img_points = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+
+    # maybe need to blur here?
+    # TODO tune if needed
+    kernel_size = (9, 9)
+    sigmaX = 9
+    sigmaY = 5
+    gray = cv2.GaussianBlur(gray, ksize=kernel_size, sigmaX=sigmaX, sigmaY=sigmaY)
+
+    # Detect edges
+    canny_low_thresh = 20
+    canny_high_thresh = 120
+
+    edges = cv2.Canny(gray, canny_low_thresh, canny_high_thresh)
+
+    cv2.imshow('Edges', edges)
+    
+    roi_image = region_of_interest(edges, [region_of_interest_vertices])
+    cv2.imshow('ROI', roi_image)
 
     corners, ids, rejected_img_points = detector.detectMarkers(gray)
 
@@ -207,20 +226,7 @@ def imageProcessing(frame):
     elif DEBUG == True:
         print("No marker present in frame")
 
-    # maybe need to blur here?
-    # TODO tune if needed
-    kernel_size = (9, 9)
-    sigmaX = 3
-    sigmaY = 1
-    gray = cv2.GaussianBlur(gray, ksize=kernel_size, sigmaX=sigmaX, sigmaY=sigmaY)
-
-    # Detect edges
-    canny_low_thresh = 40
-    canny_high_thresh = 120
-
-    edges = cv2.Canny(gray, canny_low_thresh, canny_high_thresh)
-
-    cv2.imshow('Edges', edges)
+    
 
     # TODO Declare once only and tune as needed 
     # Hough transform
@@ -230,7 +236,7 @@ def imageProcessing(frame):
     min_line_length = 20     # minimum number of pixels making up a line
     max_line_gap = 15        # maximum gap in pixels between connectable line segments
 
-    houghLines = cv2.HoughLinesP(edges, 1, np.pi/180, 50, maxLineGap=10)
+    houghLines = cv2.HoughLinesP(roi_image, 1, np.pi/180, 50, maxLineGap=20)
     # TODO find out about extracting only the longest lines and if this would be representative of the lane lines?
     # houghLines = np.sort(houghLines)
     # print(houghLines)
@@ -241,6 +247,8 @@ def imageProcessing(frame):
         line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
         leftLaneSlope, rightLaneSlope = laneSplit(line_img, houghLines)
 
+        print("Left lane slope: ", leftLaneSlope)
+        print("Right lane slope: ", rightLaneSlope)
         #cv2.imshow('Hough', line_img)
 
         combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
@@ -258,7 +266,7 @@ def imageProcessing(frame):
     return combined
 
 def main():
-    video_path = 'Videos/kitchenadjcamerayesaruco720_30.avi' 
+    video_path = 'Videos/fullTrack3720_30.avi' 
 
     cap = cv2.VideoCapture(video_path)
 
@@ -286,6 +294,7 @@ def main():
                 keycode = cv2.waitKey(10) & 0xFF
 
                 if keycode == 27 or keycode == ord('q'): #allow user to quit gracefully
+                    #cv2.waitKey(0)
                     break
         
             cap.release()
