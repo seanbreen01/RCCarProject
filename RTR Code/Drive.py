@@ -63,10 +63,10 @@ parameters = aruco.DetectorParameters_create()
 
 # CUDA setup stuff
 # TODO add all necessary functions and filters etc. here
-gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=3, sigma2=1) #defines source image as 8-bit single colour channel (grayscale, and -1 is destination the same)
+gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=9, sigma2=5) #defines source image as 8-bit single colour channel (grayscale, and -1 is destination the same)
 
 
-cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=40, high_thresh=120)
+cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=20, high_thresh=120)
 
 houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) # TODO what is doSort, maxLines and tune further
 
@@ -151,7 +151,7 @@ def drawLine(img, x, y, color=[0, 255, 0], thickness=20):
     y1 = maxY
     x1 = int((y1 - b)/m)
     # Trims line draw height, used only in debug output image
-    y2 = int((maxY/4)) + 60  # note: hardcoded, sets the length of the line to half the image height + 60 pixels, original value was div by 2
+    y2 = int((maxY/8)) + 60  # note: hardcoded, sets the length of the line to half the image height + 60 pixels, original value was div by 2
     x2 = int((y2 - b)/m)
     cv2.line(img, (x1, y1), (x2, y2), color, thickness)
 
@@ -217,16 +217,23 @@ def processingPipeline(frame):
     # ROI defined as trapezium for 720 video
     # TODO move outside of function, and make it a global variable?
     # No need to define every time function is called
-    region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
+    # region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
+    # 'Pants' shaped ROI
+    region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1180,720], [980,300],[300,300], [100,720],  [0,720]], dtype=np.int32)
 
-    roi_image = region_of_interest(frame, [region_of_interest_vertices])
+    # TODO will need to test if region of interest functon works with GPU mat, unsure at present
+    # roi_image = region_of_interest(frame, [region_of_interest_vertices])
     # cv2.imshow('ROI', roi_image)
 
-    # image_gpu.upload(roi_image)
+    
 
     image_gpu.upload(frame)
 
     gray_gpu = cv2.cuda.cvtColor(image_gpu, cv2.COLOR_BGR2GRAY)
+
+    blurred_gpu = gaussian_filter.apply(gray_gpu)
+
+    cannyEdgesDetected_gpu = cannyEdgeDetector.detect(blurred_gpu)
 
     #TODO how often
     # Don't want to detect Aruco markers every frame
@@ -259,13 +266,13 @@ def processingPipeline(frame):
         counter = 0
     counter += 1
 
-    blurred_gpu = gaussian_filter.apply(gray_gpu)
+    # blurred_gpu = gaussian_filter.apply(gray_gpu)
 
-    cannyEdgesDetected_gpu = cannyEdgeDetector.detect(blurred_gpu)
+    # cannyEdgesDetected_gpu = cannyEdgeDetector.detect(blurred_gpu)
 
     edges = cannyEdgesDetected_gpu.download()
 
-    houghLines_cpu = cv2.HoughLinesP(edges, 1, np.pi/180, 50, maxLineGap=10)
+    houghLines_cpu = cv2.HoughLinesP(edges, 1, np.pi/180, 50, maxLineGap=20)
     # Returns data in polar form, pain to work with and opertions needed for conversion may outweigh benefits of GPU acceleration
     # TODO investigate if time available
     # houghlines_gpu = houghLinesDetector.detect(cannyEdgesDetected_gpu)
@@ -340,6 +347,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
 
     # TODO tune slope values, obviously values there now are way off
     # Straight ahead
+    # TODO this value definitely wrong, needs to be tuned
     if leftLaneSlope >= 100 and rightLaneSlope >= 100:
         # commands to steering and motor to continue straight ahead, maybe increase speed?
         print("Straight ahead")

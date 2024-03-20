@@ -33,6 +33,10 @@ aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
 parameters = aruco.DetectorParameters()
 detector = aruco.ArucoDetector(aruco_dict, parameters)
 
+arucoList = []
+previousArucoID = None
+mappingFlag = True
+
 # aruco_dict = aruco.Dictionary_get(ARUCO_DICT["DICT_4X4_50"])
 # # Initialize the detector parameters using default values
 # parameters = aruco.DetectorParameters_create()
@@ -152,7 +156,8 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
     # slopeLeftPoints = [x/y for x,y in zip(leftPointsX, leftPointsY)]
     # slopeLeftPoints = sum(slopeLeftPoints)/len(slopeLeftPoints)
 
-    
+    # TODO is mean the wisest choice here?
+    # Probably but should confirm
     avg_left_slope = np.mean(mLeft)
     avg_right_slope = np.mean(mRight)
 
@@ -170,12 +175,13 @@ def imageProcessing(frame):
 
     DEBUG = True
 
-    # TODO Define region of interest approrpriate to camera angle
+    # TODO Define region of interest appropriate to camera angle
     # Note: order of vertices is important to get the correct mask shape
     # region_of_interest_vertices = np.array([[80, 720],  [80, 250], [1200, 250],[1200, 720]], dtype=np.int32)
 
     # ROI defined as trapezium for 720 video
     # region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
+    # 'Pants' shaped ROI
     region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1180,720], [980,300],[300,300], [100,720],  [0,720]], dtype=np.int32)
 
     
@@ -205,6 +211,21 @@ def imageProcessing(frame):
     cv2.imshow('ROI', roi_image)
 
     corners, ids, rejected_img_points = detector.detectMarkers(gray)
+
+    # TODO needs to be within if aruco not none etc.
+    # TODO something wrong in logic here at the minute i think
+    if previousArucoID != ids and ids in arucoList:
+        print("Marker not the same as previous and is saved to list")
+        # check sequence 
+
+    elif previousArucoID == ids:
+        print("Same marker detected again, not a fluke")
+        arucoList.append(ids)
+        
+    else:
+        print("New marker detected")
+        previousArucoID = ids
+    
 
     if ids is not None and len(ids) > 0 and DEBUG == True:
         print("Marker found")
@@ -253,8 +274,11 @@ def imageProcessing(frame):
 
         combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
         # cv2.imshow('Combined', combined)
+
+        cornerTypeDetection(leftLaneSlope, rightLaneSlope)
     else:
         combined = frame
+    
     
     #Do some more with frame, etc. etc. 
 
@@ -263,7 +287,86 @@ def imageProcessing(frame):
 
 
     # Will actually return a command to send to the Arduino and affect some change in its movement
+    
+        
+    
+
     return combined
+
+# Function for line slope detection
+
+
+# Function for corner type detection --> is hairpin, trigger these control responses
+def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
+    print("Corner type detection")
+    cornerType = None
+    centerMargin = 0.05
+    # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
+
+    # TODO tune slope values, obviously values there now are way off
+    # Straight ahead
+    # TODO this value definitely wrong, needs to be tuned
+    if leftLaneSlope <= -0.1 and leftLaneSlope > -0.3 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.3:
+        # commands to steering and motor to continue straight ahead, maybe increase speed?
+        print("Straight ahead")
+        # TODO tune so its not 'overly' sensitive, adjust only when needed, not if its just not perfectly centered
+        if leftLaneSlope > rightLaneSlope - centerMargin:
+            # recenter on track, too far left
+            print("shift right slightly")
+        elif rightLaneSlope > leftLaneSlope + centerMargin:
+            # recenter on track, too far right
+            print("shift left slightly")
+
+        #TODO if mapping track
+        # --> save corner type to array, & corresponding timestamp/
+        cornerType = "Left Hairpin" # Have this be a key for a dictionary of corner types and their associated control commands
+
+    elif leftLaneSlope < -0.3 and rightLaneSlope < 0.3:
+        print("Gentle Left - both negative slope detected, [but left lane is steeper than right lane, so gentle right turn detected]???")
+
+    elif leftLaneSlope > -0.3 and rightLaneSlope > 0.3:
+        print("Gentle Right - both positive slopes ") 
+
+    # TODO need data on this to align values properly
+    elif leftLaneSlope < -10 and rightLaneSlope < - 10:
+        print("90 Degree Right - both strongly negative slopes")
+            
+    elif leftLaneSlope > 10 and rightLaneSlope > 10:
+        print("90 Degree Left - both strongly positive slopes")    
+
+    # TODO logic for hairpins seems dodgy at best, review with test footage
+    elif leftLaneSlope < -10 and rightLaneSlope > 100:
+        print("Right Entry Hairpin detected - left lane strongly negative, right lane almost flat horizontal line (close to infinite slope)")
+        #--> send control commands to Arduino to slow down, turn, etc.
+    elif leftLaneSlope > 100 and rightLaneSlope > 10:
+        print("Left Entry Hairpin  - right lane strongly positive, left lane almost flat horizontal line (close to infinite slope)")
+    
+
+    elif leftLaneSlope == None and rightLaneSlope is not None:
+        print("No left lane, off track to left side of course (left lane incorrectly identified as right lane?)")
+    elif rightLaneSlope == None and leftLaneSlope is not None:
+        print("No right lane, off track to right side of course (right lane incorrectly identified as left lane?)")
+    elif leftLaneSlope and rightLaneSlope is None:
+        print("Completely off track, engage recovery protocol")
+
+    
+    # TODO define corner types and their associated control commands
+
+    sendControlCommands(cornerType)
+
+# Function to send control commands
+    #--> non-blocking if series of commands is needed in eventual 'racing-line' following implementation
+    #--> format of sent commands already known
+def sendControlCommands(cornerType = None):
+# TODO dictionary of corner types and their associated control commands
+
+    try:
+        print("temp")
+        #writeToArduino([0, 80, 1000])   #steering control
+        #writeToArduino([1, 1600, 1000]) #motor control
+    except OSError:
+        print("Command to Arudino failed to transmit")
+        #TODO what to do if get multiple in a row, indicating I2C failure 
 
 def main():
     video_path = 'Videos/fullTrack3720_30.avi' 
