@@ -20,16 +20,22 @@ framerate = 30
 # Control theory varaible definitions
 maxSpeed = 1600
 
+cornerType = "straight"
+
 corner_dict_steering = {
     "straight": [0,80,150],
     "gentleLeft": [0, 90, 150],
-    "gentleRight": [0, 70, 150]
+    "gentleRight": [0, 70, 150],
+    "rightTrim": [0, 75, 150],
+    "leftTrim": [0, 85, 150]
     }
 
 corner_dict_motor = {
     "straight": [1,maxSpeed,150],
     "gentleLeft": [1, maxSpeed, 150],
-    "gentleRight": [1, maxSpeed, 150]
+    "gentleRight": [1, maxSpeed, 150],
+    "rightTrim": [1, maxSpeed, 150],
+    "leftTrim": [1, maxSpeed, 150]
     }
 
 # Aruco marker detection variable
@@ -40,13 +46,10 @@ DEBUG = False
 
 # Nvidia Jetson Nano i2c Bus 0
 bus = smbus.SMBus(0)
-# This is the address we setup in the Arduino script
+# address  setup in the Arduino script
 address = 0x40
 
 # Aruco setup
-    #--> dictionary of markers to be used, how will we be leveraging them
-    #--> i.e. for corner type identification (this type of Aruco==hairpin, etc.)
-    #--> or for position synchronization around track?
 ARUCO_DICT = {
 	"DICT_4X4_50": cv2.aruco.DICT_4X4_50,
 	"DICT_4X4_100": cv2.aruco.DICT_4X4_100,
@@ -82,7 +85,7 @@ gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), si
 
 cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=20, high_thresh=120)
 
-houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) # TODO what is doSort, maxLines and tune further
+#houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) # TODO what is doSort, maxLines and tune further
 
 #other filters etc. here 
 image_gpu = cv2.cuda_GpuMat() 
@@ -98,8 +101,8 @@ def writeToArduino(valueToWrite):
         bytesToWrite.extend([highByte, lowByte])
 
     # Send the byte array
-    print('Bytes: ')    #TODO add flag for debug
-    print(bytesToWrite)
+    #print('Bytes: ')    #TODO add flag for debug
+    #print(bytesToWrite)
     bus.write_i2c_block_data(address, 0, bytesToWrite)
 
 def readFromArduino():
@@ -129,7 +132,6 @@ def gstreamer_pipeline(sensor_id=0, sensor_mode=3, capture_width=1280, capture_h
 def region_of_interest(img, vertices):
     """
     Applies an image mask.
-    
     Only keeps the region of the image defined by the polygon defined by "vertices". 
     The rest of the image is set to black.
     """
@@ -203,23 +205,13 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
     
     if DEBUG == True:
         drawLine(img, leftPointsX, leftPointsY, color, thickness)
-            
         drawLine(img, rightPointsX, rightPointsY, color, thickness)
 
     # TODO in progress here, my additions
     # TODO this slope calculation is not working as intended
-    # TOFIX needs to be proper m = (y2 - y1)/(x2 - x1) calculation as above. 
-    # slopeLeftPoints = [x/y for x,y in zip(leftPointsX, leftPointsY)]
-    # slopeLeftPoints = sum(slopeLeftPoints)/len(slopeLeftPoints)
-
     
     avg_left_slope = np.mean(mLeft)
     avg_right_slope = np.mean(mRight)
-
-    # if avg_left_slope < -4:
-    #     cv2.waitKey(0)
-
-   # print("Averge slope left line points", avg_left_slope)
 
     return avg_left_slope, avg_right_slope
 
@@ -230,8 +222,7 @@ def processingPipeline(frame):
 
     # ROI defined as trapezium for 720 video
     # TODO move outside of function, and make it a global variable?
-    # No need to define every time function is called
-    # region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
+ 
     # 'Pants' shaped ROI
     region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1180,720], [980,300],[300,300], [100,720],  [0,720]], dtype=np.int32)
 
@@ -251,7 +242,7 @@ def processingPipeline(frame):
     #TODO how often
     # Don't want to detect Aruco markers every frame
     if counter % 10 == 0:
-        print("here")
+        print("Aruco Detection")
         corners, ids, rejected_img_points = aruco.detectMarkers(gray_gpu.download(), aruco_dict, parameters=parameters)
         if ids is not None and len(ids) > 0 and DEBUG == True:
             print("Marker found")
@@ -269,13 +260,12 @@ def processingPipeline(frame):
                 # Draw marker ID
                 cv2.putText(frame, str(ids[i][0]), text_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
 
-            cv2.imshow('Detected Markers', frame)
+            #cv2.imshow('Detected Markers', frame)
         elif DEBUG == True:
             print("No marker present in frame")
 
                 #TODO check aruco marker against stored sequence if this exists?
 
-        
         counter = 0
     counter += 1
 
@@ -294,7 +284,7 @@ def processingPipeline(frame):
         #cv2.imshow('Hough', line_img)
 
         combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
-        # cv2.imshow('Combined', combined)
+        cv2.imshow('Combined', combined)
     else:
         combined = frame
 
@@ -318,13 +308,11 @@ def processingPipeline(frame):
 
     cornerTypeDetection(leftLaneSlope, rightLaneSlope)
 
-# Function for line slope detection
-
 
 # Function for corner type detection --> is hairpin, trigger these control responses
 def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     print("Corner type detection")
-    cornerType = None
+    global cornerType
     centerMargin = 0.05
     # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
 
@@ -338,9 +326,11 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
         if leftLaneSlope > rightLaneSlope - centerMargin:
             # recenter on track, too far left
             print("shift right slightly")
+            cornerType = "rightTrim"
         elif rightLaneSlope > leftLaneSlope + centerMargin:
             # recenter on track, too far right
             print("shift left slightly")
+            cornerType = "leftTrim"
 
         #TODO if mapping track
         # --> save corner type to array, & corresponding timestamp/
