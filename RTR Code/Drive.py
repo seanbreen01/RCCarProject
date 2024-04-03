@@ -17,6 +17,21 @@ xres = 1280
 yres = 720
 framerate = 30
 
+# Control theory varaible definitions
+maxSpeed = 1600
+
+corner_dict_steering = {
+    "straight": [0,80,150],
+    "gentleLeft": [0, 90, 150],
+    "gentleRight": [0, 70, 150]
+    }
+
+corner_dict_motor = {
+    "straight": [1,maxSpeed,150],
+    "gentleLeft": [1, maxSpeed, 150],
+    "gentleRight": [1, maxSpeed, 150]
+    }
+
 # Aruco marker detection variable
 counter = 0
 
@@ -64,7 +79,6 @@ parameters = aruco.DetectorParameters_create()
 # CUDA setup stuff
 # TODO add all necessary functions and filters etc. here
 gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=9, sigma2=5) #defines source image as 8-bit single colour channel (grayscale, and -1 is destination the same)
-
 
 cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=20, high_thresh=120)
 
@@ -221,7 +235,6 @@ def processingPipeline(frame):
     # 'Pants' shaped ROI
     region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1180,720], [980,300],[300,300], [100,720],  [0,720]], dtype=np.int32)
 
-    # TODO will need to test if region of interest functon works with GPU mat, unsure at present
     # roi_image = region_of_interest(frame, [region_of_interest_vertices])
     # cv2.imshow('ROI', roi_image)
 
@@ -266,37 +279,10 @@ def processingPipeline(frame):
         counter = 0
     counter += 1
 
-    # blurred_gpu = gaussian_filter.apply(gray_gpu)
-
-    # cannyEdgesDetected_gpu = cannyEdgeDetector.detect(blurred_gpu)
 
     edges = cannyEdgesDetected_gpu.download()
 
     houghLines_cpu = cv2.HoughLinesP(edges, 1, np.pi/180, 50, maxLineGap=20)
-    # Returns data in polar form, pain to work with and opertions needed for conversion may outweigh benefits of GPU acceleration
-    # TODO investigate if time available
-    # houghlines_gpu = houghLinesDetector.detect(cannyEdgesDetected_gpu)
-
-    # houghLines = houghlines_gpu.download()
-    # temp = []
-    # for line in houghLines:
-
-    #     rho, theta = line[0]
-        
-
-    #     a = np.cos(theta)
-    #     b = np.sin(theta)
-        
-    #     x0 = a * rho
-    #     y0 = b * rho
-    #     x1 = int(x0 + 1000 * (-b))
-    #     y1 = int(y0 + 1000 * (a))
-    #     x2 = int(x0 - 1000 * (-b))
-    #     y2 = int(y0 - 1000 * (a))
-    #     temp.append(x1)
-    #     temp.append(x2)
-    #     temp.append(y1)
-    #     temp.append(y2)
 
 
     if houghLines_cpu is not None:
@@ -338,37 +324,36 @@ def processingPipeline(frame):
 # Function for corner type detection --> is hairpin, trigger these control responses
 def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     print("Corner type detection")
-
+    cornerType = None
+    centerMargin = 0.05
     # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
-
-    print("leftLaneSlope", leftLaneSlope)
-
-    print("rightLaneSlope", rightLaneSlope)
 
     # TODO tune slope values, obviously values there now are way off
     # Straight ahead
-    # TODO this value definitely wrong, needs to be tuned
-    if leftLaneSlope >= 100 and rightLaneSlope >= 100:
+    
+    if leftLaneSlope <= -0.1 and leftLaneSlope > -0.3 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.3:
         # commands to steering and motor to continue straight ahead, maybe increase speed?
         print("Straight ahead")
         # TODO tune so its not 'overly' sensitive, adjust only when needed, not if its just not perfectly centered
-        if leftLaneSlope > rightLaneSlope:
+        if leftLaneSlope > rightLaneSlope - centerMargin:
             # recenter on track, too far left
             print("shift right slightly")
-        elif rightLaneSlope > leftLaneSlope:
+        elif rightLaneSlope > leftLaneSlope + centerMargin:
             # recenter on track, too far right
             print("shift left slightly")
 
         #TODO if mapping track
         # --> save corner type to array, & corresponding timestamp/
-        cornerType = "Left Hairpin" # Have this be a key for a dictionary of corner types and their associated control commands
+        cornerType = "straight" # TODO Have this be a key for a dictionary of corner types and their associated control commands
 
-    elif leftLaneSlope < -1 and rightLaneSlope < -1:
-        print("Gentle Right - both negative slope detected, [but left lane is steeper than right lane, so gentle right turn detected]???")
+    elif leftLaneSlope < -0.3 and rightLaneSlope < 0.3:
+        print("Gentle Left - both negative slope detected, [but left lane is steeper than right lane, so gentle right turn detected]???")
+        cornerType = "gentleLeft"
+    elif leftLaneSlope > -0.3 and rightLaneSlope > 0.3:
+        print("Gentle Right - both positive slopes ") 
+        cornerType = "gentleRight"
 
-    elif leftLaneSlope > 1 and rightLaneSlope > 1:
-        print("Gentle Left - both positive slopes ") 
-
+    # TODO need data on this to align values properly
     elif leftLaneSlope < -10 and rightLaneSlope < - 10:
         print("90 Degree Right - both strongly negative slopes")
             
@@ -400,12 +385,21 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     #--> format of sent commands already known
 def sendControlCommands(cornerType = None):
 # TODO dictionary of corner types and their associated control commands
+# TODO define aoutside of function
+# TODO define time to hold variable rather than hardcoded 150ms values --> recipe for disaster
+    
 
     try:
-        writeToArduino([0, 80, 1000])   #steering control
-        writeToArduino([1, 1600, 1000]) #motor control
+        print("temp")
+        writeToArduino(corner_dict_steering[cornerType])
+        writeToArduino(corner_dict_motor[cornerType])
+        #writeToArduino([0, 80, 1000])   #steering control
+        #writeToArduino([1, 1600, 1000]) #motor control
     except OSError:
         print("Command to Arudino failed to transmit")
+        i2cErrorCounter += 1
+        if i2cErrorCounter > 3:
+            print("I2C failure detected, end script here and alert user")
         #TODO what to do if get multiple in a row, indicating I2C failure 
 
 

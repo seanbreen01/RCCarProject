@@ -37,6 +37,10 @@ arucoList = []
 previousArucoID = None
 mappingFlag = True
 
+maxSpeed = 1600
+
+i2cErrorCounter = 0
+
 # aruco_dict = aruco.Dictionary_get(ARUCO_DICT["DICT_4X4_50"])
 # # Initialize the detector parameters using default values
 # parameters = aruco.DetectorParameters_create()
@@ -175,6 +179,12 @@ def imageProcessing(frame):
 
     DEBUG = True
 
+    cv2.imshow("input", frame)
+
+    global previousArucoID
+    global arucoList
+    global mappingFlag
+
     # TODO Define region of interest appropriate to camera angle
     # Note: order of vertices is important to get the correct mask shape
     # region_of_interest_vertices = np.array([[80, 720],  [80, 250], [1200, 250],[1200, 720]], dtype=np.int32)
@@ -208,7 +218,9 @@ def imageProcessing(frame):
     cv2.imshow('Edges', edges)
     
     roi_image = region_of_interest(edges, [region_of_interest_vertices])
+
     cv2.imshow('ROI', roi_image)
+
 
     corners, ids, rejected_img_points = detector.detectMarkers(gray)
 
@@ -305,7 +317,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
 
     # TODO tune slope values, obviously values there now are way off
     # Straight ahead
-    # TODO this value definitely wrong, needs to be tuned
+    
     if leftLaneSlope <= -0.1 and leftLaneSlope > -0.3 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.3:
         # commands to steering and motor to continue straight ahead, maybe increase speed?
         print("Straight ahead")
@@ -319,13 +331,14 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
 
         #TODO if mapping track
         # --> save corner type to array, & corresponding timestamp/
-        cornerType = "Left Hairpin" # Have this be a key for a dictionary of corner types and their associated control commands
+        cornerType = "straight" # TODO Have this be a key for a dictionary of corner types and their associated control commands
 
     elif leftLaneSlope < -0.3 and rightLaneSlope < 0.3:
         print("Gentle Left - both negative slope detected, [but left lane is steeper than right lane, so gentle right turn detected]???")
-
+        cornerType = "gentleLeft"
     elif leftLaneSlope > -0.3 and rightLaneSlope > 0.3:
         print("Gentle Right - both positive slopes ") 
+        cornerType = "gentleRight"
 
     # TODO need data on this to align values properly
     elif leftLaneSlope < -10 and rightLaneSlope < - 10:
@@ -359,13 +372,31 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     #--> format of sent commands already known
 def sendControlCommands(cornerType = None):
 # TODO dictionary of corner types and their associated control commands
+# TODO define aoutside of function
+# TODO define time to hold variable rather than hardcoded 150ms values --> recipe for disaster
+    corner_dict_steering = {
+    "straight": [0,80,150],
+    "gentleLeft": [0, 90, 150],
+    "gentleRight": [0, 70, 150]
+    }
+
+    corner_dict_motor = {
+    "straight": [1,maxSpeed,150],
+    "gentleLeft": [1, maxSpeed, 150],
+    "gentleRight": [1, maxSpeed, 150]
+    }
 
     try:
         print("temp")
+        writeToArduino(corner_dict_steering[cornerType])
+        writeToArduino(corner_dict_motor[cornerType])
         #writeToArduino([0, 80, 1000])   #steering control
         #writeToArduino([1, 1600, 1000]) #motor control
     except OSError:
         print("Command to Arudino failed to transmit")
+        i2cErrorCounter += 1
+        if i2cErrorCounter > 3:
+            print("I2C failure detected, end script here and alert user")
         #TODO what to do if get multiple in a row, indicating I2C failure 
 
 def main():
