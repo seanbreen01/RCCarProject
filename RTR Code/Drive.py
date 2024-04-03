@@ -20,6 +20,11 @@ framerate = 30
 # Control theory varaible definitions
 maxSpeed = 1600
 
+leftLaneSlope = 0
+rightLaneSlope = 0
+
+cornerType = "straight"
+
 corner_dict_steering = {
     "straight": [0,80,150],
     "gentleLeft": [0, 90, 150],
@@ -32,11 +37,13 @@ corner_dict_motor = {
     "gentleRight": [1, maxSpeed, 150]
     }
 
+i2cErrorCounter = 0
+
 # Aruco marker detection variable
 counter = 0
 
 # Debug variable
-DEBUG = False
+DEBUG = True
 
 # Nvidia Jetson Nano i2c Bus 0
 bus = smbus.SMBus(0)
@@ -98,8 +105,8 @@ def writeToArduino(valueToWrite):
         bytesToWrite.extend([highByte, lowByte])
 
     # Send the byte array
-    print('Bytes: ')    #TODO add flag for debug
-    print(bytesToWrite)
+    #print('Bytes: ')    #TODO add flag for debug
+    #print(bytesToWrite)
     bus.write_i2c_block_data(address, 0, bytesToWrite)
 
 def readFromArduino():
@@ -227,6 +234,8 @@ def processingPipeline(frame):
 
     global DEBUG
     global counter
+    global leftLaneSlope
+    global rightLaneSlope
 
     # ROI defined as trapezium for 720 video
     # TODO move outside of function, and make it a global variable?
@@ -324,8 +333,9 @@ def processingPipeline(frame):
 # Function for corner type detection --> is hairpin, trigger these control responses
 def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     print("Corner type detection")
-    cornerType = None
     centerMargin = 0.05
+
+    global cornerType
     # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
 
     # TODO tune slope values, obviously values there now are way off
@@ -387,7 +397,7 @@ def sendControlCommands(cornerType = None):
 # TODO dictionary of corner types and their associated control commands
 # TODO define aoutside of function
 # TODO define time to hold variable rather than hardcoded 150ms values --> recipe for disaster
-    
+    global i2cErrorCounter
 
     try:
         print("temp")
@@ -429,7 +439,7 @@ def main():
 
     # cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
 
-    video_path = 'Videos/kitchenadjcamerayesaruco720_30.avi' 
+    video_path = 'Videos/fulltrack3720_30.avi' 
 
     cap = cv2.VideoCapture(video_path)
 
@@ -443,7 +453,7 @@ def main():
                 processed_frame_results = processingPipeline(frame)
                 # ^ Will return arrays/lists with points that equate to detected lines
 
-                # cv2.imshow("Debug", processed_frame_results)
+                #cv2.imshow("Debug", processed_frame_results)
 
                 keycode = cv2.waitKey(10) & 0xFF
 
