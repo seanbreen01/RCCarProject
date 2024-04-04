@@ -18,7 +18,7 @@ yres = 720
 framerate = 30
 
 # Control theory varaible definitions
-maxSpeed = 1600
+maxSpeed = int(input("Set max speed 1600 - 2000: "))
 
 cornerType = "straight"
 
@@ -229,8 +229,8 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
     avg_left_slope = np.mean(mLeft)
     avg_right_slope = np.mean(mRight)
 
-    print('left', avg_left_slope)
-    print('right', avg_right_slope)
+    #print('left', avg_left_slope)
+    #print('right', avg_right_slope)
 
     return avg_left_slope, avg_right_slope
 
