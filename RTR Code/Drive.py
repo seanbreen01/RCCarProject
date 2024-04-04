@@ -28,22 +28,26 @@ cornerType = "straight"
 left_lane_slopes = []
 right_lane_slopes = []
 
+
+
 window_size = 5
 
+cornerTypeCounter = 0
+
 corner_dict_steering = {
-    "straight": [0,80,150],
-    "gentleLeft": [0, 90, 150],
-    "gentleRight": [0, 70, 150],
-    "rightTrim": [0, 75, 150],
-    "leftTrim": [0, 85, 150]
+    "straight": [0,75,250],
+    "gentleLeft": [0, 90, 250],
+    "gentleRight": [0, 65, 250],
+    "rightTrim": [0, 70, 250],
+    "leftTrim": [0, 80, 250]
     }
 
 corner_dict_motor = {
-    "straight": [1,maxSpeed,150],
-    "gentleLeft": [1, maxSpeed, 150],
-    "gentleRight": [1, maxSpeed, 150],
-    "rightTrim": [1, maxSpeed, 150],
-    "leftTrim": [1, maxSpeed, 150]
+    "straight": [1,maxSpeed,250],
+    "gentleLeft": [1, maxSpeed, 250],
+    "gentleRight": [1, maxSpeed, 250],
+    "rightTrim": [1, maxSpeed, 250],
+    "leftTrim": [1, maxSpeed, 250]
     }
 
 i2cErrorCounter = 0
@@ -93,7 +97,7 @@ parameters = aruco.DetectorParameters_create()
 # TODO add all necessary functions and filters etc. here
 gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=9, sigma2=5) #defines source image as 8-bit single colour channel (grayscale, and -1 is destination the same)
 
-cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=20, high_thresh=120)
+cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=50, high_thresh=120)
 
 region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1240,720], [980,300],[300,300], [40,720],  [0,720]], dtype=np.int32)
 
@@ -201,14 +205,14 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
             m = (y1 - y2)/(x1 - x2) # slope
             
             # TODO tune these m values, especial care needed
-            if m < -0.5:
+            if m < -0.1:
                 leftPointsX.append(x1)
                 leftPointsY.append(y1)
                 leftPointsX.append(x2)
                 leftPointsY.append(y2)
                 mLeft.append(m)
                 
-            elif m > 0.1 and m < 2:
+            elif m > 0.1:
                 rightPointsX.append(x1)
                 rightPointsY.append(y1)
                 rightPointsX.append(x2)
@@ -234,8 +238,14 @@ def processingPipeline(frame):
 
     global DEBUG
     global counter
-    global leftLaneSlope
-    global rightLaneSlope
+    global cornerTypeCounter
+    global average_left_slope
+    global average_right_slope
+    global window_size
+
+    cornerTypeCounter += 1
+    # global leftLaneSlope
+    # global rightLaneSlope
 
     # ROI defined as trapezium for 720 video
     # TODO move outside of function, and make it a global variable?
@@ -289,8 +299,8 @@ def processingPipeline(frame):
     edges = cannyEdgesDetected_gpu.download()
 
     roi_image = region_of_interest(edges, [region_of_interest_vertices])
-
-    houghLines_cpu = cv2.HoughLinesP(roi_image, 1, np.pi/180, 50, maxLineGap=20)
+    cv2.imshow('roi', roi_image)
+    houghLines_cpu = cv2.HoughLinesP(roi_image, 1, np.pi/180, 50, maxLineGap=30)
 
 
     if houghLines_cpu is not None:
@@ -309,6 +319,8 @@ def processingPipeline(frame):
             right_lane_slopes.pop(0)
         average_right_slope = sum(right_lane_slopes) / len(right_lane_slopes)
 
+        
+
         # TODO remove from final code, including ability to combine
         #cv2.imshow('Hough', line_img)
 
@@ -316,6 +328,8 @@ def processingPipeline(frame):
         cv2.imshow('Combined', combined)
     else:
         combined = frame
+        average_left_slope = 0
+        average_right_slope = 0
 
     # returnedImage = gray_gpu.download()
 
@@ -335,18 +349,16 @@ def processingPipeline(frame):
         
     #TODO if in recovery procedure, don't detect corner type, create flag for this
 
-    if cornerTypeCounter % 4 == 0:
+    if cornerTypeCounter % 7 == 0 and average_left_slope is not None and average_right_slope is not None:
         cornerTypeDetection(average_left_slope, average_right_slope)
         cornerTypeCounter = 0
-    else:
-        cornerTypeCounter += 1
     
 
 
 # Function for corner type detection --> is hairpin, trigger these control responses
 def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     print("Corner type detection")
-    centerMargin = 0.05
+    centerMargin = 0.15
 
     global cornerType
     # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
@@ -394,10 +406,10 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
 
     elif np.isnan(leftLaneSlope) and rightLaneSlope is not None:
         print("No left lane, off track to left side of course (left lane incorrectly identified as right lane?)")
-        cornerType = "gentleRight"
+        cornerType = "gentleLeft"
     elif np.isnan(rightLaneSlope) and leftLaneSlope is not None:
         print("No right lane, off track to right side of course (right lane incorrectly identified as left lane?)")
-        cornerType = "gentleLeft"
+        cornerType = "gentleRight"
     elif np.isnan(leftLaneSlope) and np.isnan(rightLaneSlope):
         print("Completely off track, engage recovery protocol")
 
