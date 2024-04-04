@@ -8,11 +8,7 @@ import numpy as np
 
 # All setup code here
 
-# Corner slope variables
-slopeLeft = 0
-slopeRight = 0
-
-# Video input setup, will alter based on testing results
+# Video input setup
 xres = 1280	
 yres = 720
 framerate = 30
@@ -27,8 +23,6 @@ cornerType = "straight"
 
 left_lane_slopes = []
 right_lane_slopes = []
-
-
 
 window_size = 5
 
@@ -87,7 +81,6 @@ ARUCO_DICT = {
 #	"DICT_APRILTAG_36h10": cv2.aruco.DICT_APRILTAG_36h10,
 #	"DICT_APRILTAG_36h11": cv2.aruco.DICT_APRILTAG_36h11
 }
-    
 # Load the predefined dictionary
 aruco_dict = aruco.Dictionary_get(ARUCO_DICT["DICT_4X4_50"])
 # Initialize the detector parameters using default values
@@ -103,7 +96,7 @@ region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1240,720
 
 #houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) # TODO what is doSort, maxLines and tune further
 
-#other filters etc. here 
+#gpu object
 image_gpu = cv2.cuda_GpuMat() 
 
 
@@ -169,6 +162,7 @@ def region_of_interest(img, vertices):
     masked_image = cv2.cuda.bitwise_and(img, mask)
     return masked_image
 
+#Ignored unless debug flag is true
 def drawLine(img, x, y, color=[0, 255, 0], thickness=20):
     if len(x) == 0: 
         return
@@ -223,8 +217,6 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
         drawLine(img, leftPointsX, leftPointsY, color, thickness)
         drawLine(img, rightPointsX, rightPointsY, color, thickness)
 
-    # TODO in progress here, my additions
-    # TODO this slope calculation is not working as intended
     
     avg_left_slope = np.mean(mLeft)
     avg_right_slope = np.mean(mRight)
@@ -246,16 +238,11 @@ def processingPipeline(frame):
     cornerTypeCounter += 1
     # global leftLaneSlope
     # global rightLaneSlope
-
-    # ROI defined as trapezium for 720 video
-    # TODO move outside of function, and make it a global variable?
  
     # 'Pants' shaped ROI
-    
     # roi_image = region_of_interest(frame, [region_of_interest_vertices])
     # cv2.imshow('ROI', roi_image)
 
-    
 
     image_gpu.upload(frame)
 
@@ -308,6 +295,7 @@ def processingPipeline(frame):
         line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
         new_left_slope, new_right_slope = laneSplit(line_img, houghLines_cpu)
 
+        # SLiding average window for slope values
         left_lane_slopes.append(new_left_slope)
         if len(left_lane_slopes) > window_size:
             left_lane_slopes.pop(0)
@@ -319,22 +307,14 @@ def processingPipeline(frame):
             right_lane_slopes.pop(0)
         average_right_slope = sum(right_lane_slopes) / len(right_lane_slopes)
 
-        
-
-        # TODO remove from final code, including ability to combine
+        # Used for debug purposes only
         #cv2.imshow('Hough', line_img)
-
-        combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
+        #combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
         #cv2.imshow('Combined', combined)
     else:
-        combined = frame
+        #combined = frame
         average_left_slope = 0
         average_right_slope = 0
-
-    # returnedImage = gray_gpu.download()
-
-    
-    
 
     # Steps ultimately leading to hough lines / canny edge / whatever line detection method is chosen
 
@@ -343,9 +323,6 @@ def processingPipeline(frame):
     # If not, log no lines detected, and continue to next frame
     # Check also if no lines detected has happpened before
     # If no detections for X frames, send control commands to Arduino to stop car, try to regain position on track (recovery protocol)
-        
-    # return combined
-    # slopeDetection(returnedImage)
         
     #TODO if in recovery procedure, don't detect corner type, create flag for this
 
@@ -363,7 +340,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     global cornerType
     # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
 
-    # TODO tune slope values, obviously values there now are way off
+    # TODO tune slope values, for additional corner types, and to ensure correct detection
     # Straight ahead
     
     if leftLaneSlope <= -0.1 and leftLaneSlope > -0.3 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.3:
@@ -379,9 +356,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
             print("shift left slightly")
             cornerType = "leftTrim"
 
-        #TODO if mapping track
-        # --> save corner type to array, & corresponding timestamp/
-        cornerType = "straight" # TODO Have this be a key for a dictionary of corner types and their associated control commands
+        cornerType = "straight" 
 
     elif leftLaneSlope < -0.3 and rightLaneSlope < 0.3:
         print("Gentle Left - both negative slope detected, [but left lane is steeper than right lane, so gentle right turn detected]???")
@@ -413,43 +388,30 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     elif np.isnan(leftLaneSlope) and np.isnan(rightLaneSlope):
         print("Completely off track, engage recovery protocol")
 
-    
-    # TODO define corner types and their associated control commands
-
     sendControlCommands(cornerType)
 
 # Function to send control commands
     #--> non-blocking if series of commands is needed in eventual 'racing-line' following implementation
     #--> format of sent commands already known
 def sendControlCommands(cornerType = None):
-# TODO dictionary of corner types and their associated control commands
-# TODO define aoutside of function
 # TODO define time to hold variable rather than hardcoded 150ms values --> recipe for disaster
     global i2cErrorCounter
 
     try:
         writeToArduino(corner_dict_steering[cornerType])
         writeToArduino(corner_dict_motor[cornerType])
-        #writeToArduino([0, 80, 1000])   #steering control
-        #writeToArduino([1, 1600, 1000]) #motor control
     except OSError:
         print("Command to Arudino failed to transmit")
         i2cErrorCounter += 1
-        if i2cErrorCounter > 3:
-            print("I2C failure detected, end script here and alert user")
-        #TODO what to do if get multiple in a row, indicating I2C failure 
+        if i2cErrorCounter > 5:
+            print("I2C failure detected, ending script here")
+            if DEBUG == False:
+                sys.exit()
 
 
 # Function for Aruco detection and storage to "list"/array etc. so when at full speed can do detections and say:
 # "passed aruco 3, then 4, then 5 etc. this is in correct (mapped) order" 
 # --> above needs more detailed consideration
-
-# Function for frame processing
-    # --> Needs to be rolling average // way to isolate bad frames due to blur, no detections etc. so system doesn't freak out and stop prematurely
-    #--v avoids issue of bad detections, blurred frames, etc. 
-
-
-# Function to generate control commands? --> based on line slope
 
 
 # Function for automated recovery should off track event happen for any reason
@@ -467,7 +429,6 @@ def main():
     cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
 
     #video_path = 'Videos/fulltrack3720_30.avi' 
-
     #cap = cv2.VideoCapture(video_path)
 
     if cap.isOpened():
@@ -475,8 +436,6 @@ def main():
             while True:
                 _, frame = cap.read()  # Read a frame from the camera
 
-                #TODO Immeadiately remove excess data from frame, i.e. whatever camera is capturing of the sky / horizon / static parts of car itself
-                # Then pass this frame in to processing 
                 processed_frame_results = processingPipeline(frame)
                 # ^ Will return arrays/lists with points that equate to detected lines
 
@@ -492,17 +451,8 @@ def main():
     else:
         print("cap.isOpened() Error")
 
-
-
-
 # Main process control loop
 if __name__ == "__main__":
     print("Drive initialised")
-    
+    print("Debug is: ", DEBUG)
     main()
-    #FrameIngest
-    #Slope outputs
-    #Control decisions based on slope
-    #Send control decisions to Arduino
-    #Receive ACK --> strictly necessary or nice to have? might just be more processing and cross-talk that doesn't necessarily add a whole pile of useful functionality?
-    #begin again
