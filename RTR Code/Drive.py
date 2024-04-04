@@ -56,7 +56,7 @@ i2cErrorCounter = 0
 counter = 0
 
 # Debug variable
-DEBUG = True
+DEBUG = False
 
 # Nvidia Jetson Nano i2c Bus 0
 bus = smbus.SMBus(0)
