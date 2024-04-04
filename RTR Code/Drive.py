@@ -22,9 +22,13 @@ maxSpeed = 1600
 
 cornerType = "straight"
 
-leftLaneSlope = 0
-rightLaneSlope = 0
+# leftLaneSlope = 0
+# rightLaneSlope = 0
 
+left_lane_slopes = []
+right_lane_slopes = []
+
+window_size = 5
 
 corner_dict_steering = {
     "straight": [0,80,150],
@@ -292,7 +296,18 @@ def processingPipeline(frame):
     if houghLines_cpu is not None:
         # TODO can this definiton be moved outside of function?
         line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
-        leftLaneSlope, rightLaneSlope = laneSplit(line_img, houghLines_cpu)
+        new_left_slope, new_right_slope = laneSplit(line_img, houghLines_cpu)
+
+        left_lane_slopes.append(new_left_slope)
+        if len(left_lane_slopes) > window_size:
+            left_lane_slopes.pop(0)
+        average_left_slope = sum(left_lane_slopes) / len(left_lane_slopes)
+
+        # Update right lane slopes
+        right_lane_slopes.append(new_right_slope)
+        if len(right_lane_slopes) > window_size:
+            right_lane_slopes.pop(0)
+        average_right_slope = sum(right_lane_slopes) / len(right_lane_slopes)
 
         # TODO remove from final code, including ability to combine
         #cv2.imshow('Hough', line_img)
@@ -320,7 +335,12 @@ def processingPipeline(frame):
         
     #TODO if in recovery procedure, don't detect corner type, create flag for this
 
-    cornerTypeDetection(leftLaneSlope, rightLaneSlope)
+    if cornerTypeCounter % 4 == 0:
+        cornerTypeDetection(average_left_slope, average_right_slope)
+        cornerTypeCounter = 0
+    else:
+        cornerTypeCounter += 1
+    
 
 
 # Function for corner type detection --> is hairpin, trigger these control responses
