@@ -7,6 +7,8 @@ import time
 import numpy as np
 
 # All setup code here
+# Debug variable
+DEBUG = False
 
 # Video input setup
 xres = 1280	
@@ -48,9 +50,6 @@ i2cErrorCounter = 0
 
 # Aruco marker detection variable
 counter = 0
-
-# Debug variable
-DEBUG = False
 
 # Nvidia Jetson Nano i2c Bus 0
 bus = smbus.SMBus(0)
@@ -236,8 +235,6 @@ def processingPipeline(frame):
     global window_size
 
     cornerTypeCounter += 1
-    # global leftLaneSlope
-    # global rightLaneSlope
  
     # 'Pants' shaped ROI
     # roi_image = region_of_interest(frame, [region_of_interest_vertices])
@@ -434,9 +431,13 @@ def main():
     if cap.isOpened():
         try:
             while True:
+                #timeStart = time.time()
                 _, frame = cap.read()  # Read a frame from the camera
 
-                processed_frame_results = processingPipeline(frame)
+                processingPipeline(frame)
+                #timeEnd = time.time()
+                #print('FPS:', 1/(timeEnd-timeStart) )
+
                 # ^ Will return arrays/lists with points that equate to detected lines
 
                 #cv2.imshow("Debug", processed_frame_results)
