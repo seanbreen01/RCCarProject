@@ -91,7 +91,7 @@ gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), si
 
 cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=20, high_thresh=120)
 
-region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1180,720], [980,300],[300,300], [100,720],  [0,720]], dtype=np.int32)
+region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1240,720], [980,300],[300,300], [40,720],  [0,720]], dtype=np.int32)
 
 #houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) # TODO what is doSort, maxLines and tune further
 
@@ -220,6 +220,9 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
     
     avg_left_slope = np.mean(mLeft)
     avg_right_slope = np.mean(mRight)
+
+    print('left', avg_left_slope)
+    print('right', avg_right_slope)
 
     return avg_left_slope, avg_right_slope
 
@@ -354,7 +357,6 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     elif leftLaneSlope > -0.3 and rightLaneSlope > 0.3:
         print("Gentle Right - both positive slopes ") 
         cornerType = "gentleRight"
-
     # TODO need data on this to align values properly
     elif leftLaneSlope < -10 and rightLaneSlope < - 10:
         print("90 Degree Right - both strongly negative slopes")
@@ -370,11 +372,13 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
         print("Left Entry Hairpin  - right lane strongly positive, left lane almost flat horizontal line (close to infinite slope)")
     
 
-    elif leftLaneSlope == None and rightLaneSlope is not None:
+    elif np.isnan(leftLaneSlope) and rightLaneSlope is not None:
         print("No left lane, off track to left side of course (left lane incorrectly identified as right lane?)")
-    elif rightLaneSlope == None and leftLaneSlope is not None:
+        cornerType = "gentleRight"
+    elif np.isnan(rightLaneSlope) and leftLaneSlope is not None:
         print("No right lane, off track to right side of course (right lane incorrectly identified as left lane?)")
-    elif leftLaneSlope and rightLaneSlope is None:
+        cornerType = "gentleLeft"
+    elif np.isnan(leftLaneSlope) and np.isnan(rightLaneSlope):
         print("Completely off track, engage recovery protocol")
 
     
@@ -392,7 +396,6 @@ def sendControlCommands(cornerType = None):
     global i2cErrorCounter
 
     try:
-        print("temp")
         writeToArduino(corner_dict_steering[cornerType])
         writeToArduino(corner_dict_motor[cornerType])
         #writeToArduino([0, 80, 1000])   #steering control
