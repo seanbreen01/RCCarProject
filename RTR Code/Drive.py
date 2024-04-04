@@ -91,6 +91,8 @@ gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), si
 
 cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=20, high_thresh=120)
 
+region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1180,720], [980,300],[300,300], [100,720],  [0,720]], dtype=np.int32)
+
 #houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) # TODO what is doSort, maxLines and tune further
 
 #other filters etc. here 
@@ -232,8 +234,7 @@ def processingPipeline(frame):
     # TODO move outside of function, and make it a global variable?
  
     # 'Pants' shaped ROI
-    region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1180,720], [980,300],[300,300], [100,720],  [0,720]], dtype=np.int32)
-
+    
     # roi_image = region_of_interest(frame, [region_of_interest_vertices])
     # cv2.imshow('ROI', roi_image)
 
@@ -280,7 +281,9 @@ def processingPipeline(frame):
 
     edges = cannyEdgesDetected_gpu.download()
 
-    houghLines_cpu = cv2.HoughLinesP(edges, 1, np.pi/180, 50, maxLineGap=20)
+    roi_image = region_of_interest(edges, [region_of_interest_vertices])
+
+    houghLines_cpu = cv2.HoughLinesP(roi_image, 1, np.pi/180, 50, maxLineGap=20)
 
 
     if houghLines_cpu is not None:

@@ -39,7 +39,11 @@ mappingFlag = True
 
 maxSpeed = 1600
 
+cornerType="straight"
+
 i2cErrorCounter = 0
+
+region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1180,720], [980,300],[300,300], [100,720],  [0,720]], dtype=np.int32)
 
 # aruco_dict = aruco.Dictionary_get(ARUCO_DICT["DICT_4X4_50"])
 # # Initialize the detector parameters using default values
@@ -73,6 +77,11 @@ def gstreamer_pipeline(
 
 # TODO Benchmark permutations
 startTime = time.time()
+
+def writeToArduino(command):
+    # TODO write to arduino via i2c
+    # command = [0, 80, 150] # 0 for steering, 1 for motor, 80 for straight, 150 for 150ms
+    pass
 
 # define a region of interest mask
 def region_of_interest(img, vertices):
@@ -192,8 +201,7 @@ def imageProcessing(frame):
     # ROI defined as trapezium for 720 video
     # region_of_interest_vertices = np.array([[0, 720], [30, 150], [1250, 150], [1280, 720]], dtype=np.int32)
     # 'Pants' shaped ROI
-    region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1180,720], [980,300],[300,300], [100,720],  [0,720]], dtype=np.int32)
-
+    
     
 
     # TODO re-introduce roi_image to the rest of the processing
@@ -388,8 +396,8 @@ def sendControlCommands(cornerType = None):
 
     try:
         print("temp")
-        writeToArduino(corner_dict_steering[cornerType])
-        writeToArduino(corner_dict_motor[cornerType])
+        # writeToArduino(corner_dict_steering[cornerType])
+        # writeToArduino(corner_dict_motor[cornerType])
         #writeToArduino([0, 80, 1000])   #steering control
         #writeToArduino([1, 1600, 1000]) #motor control
     except OSError:
