@@ -26,11 +26,11 @@ cornerType = "straight"
 left_lane_slopes = []
 right_lane_slopes = []
 
-window_size = 3
+window_size = 2
 
 cornerTypeCounter = 0
 
-controlTimer = 125
+controlTimer = 100
 
 corner_dict_steering = {
     "straight": [0,76,controlTimer],
