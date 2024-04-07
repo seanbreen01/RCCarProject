@@ -30,20 +30,22 @@ window_size = 3
 
 cornerTypeCounter = 0
 
+controlTimer = 125
+
 corner_dict_steering = {
-    "straight": [0,75,250],
-    "gentleLeft": [0, 85, 250],
-    "gentleRight": [0, 70, 250],
-    "rightTrim": [0, 72, 250],
-    "leftTrim": [0, 78, 250]
+    "straight": [0,75,controlTimer],
+    "gentleLeft": [0, 85, controlTimer],
+    "gentleRight": [0, 70, controlTimer],
+    "rightTrim": [0, 72, controlTimer],
+    "leftTrim": [0, 78, controlTimer]
     }
 
 corner_dict_motor = {
-    "straight": [1,maxSpeed,250],
-    "gentleLeft": [1, maxSpeed, 250],
-    "gentleRight": [1, maxSpeed, 250],
-    "rightTrim": [1, maxSpeed, 250],
-    "leftTrim": [1, maxSpeed, 250]
+    "straight": [1,maxSpeed,controlTimer],
+    "gentleLeft": [1, maxSpeed, controlTimer],
+    "gentleRight": [1, maxSpeed, controlTimer],
+    "rightTrim": [1, maxSpeed, controlTimer],
+    "leftTrim": [1, maxSpeed, controlTimer]
     }
 
 i2cErrorCounter = 0
