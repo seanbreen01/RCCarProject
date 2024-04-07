@@ -33,10 +33,10 @@ cornerTypeCounter = 0
 controlTimer = 125
 
 corner_dict_steering = {
-    "straight": [0,75,controlTimer],
-    "gentleLeft": [0, 85, controlTimer],
-    "gentleRight": [0, 70, controlTimer],
-    "rightTrim": [0, 72, controlTimer],
+    "straight": [0,76,controlTimer],
+    "gentleLeft": [0, 80, controlTimer],
+    "gentleRight": [0, 72, controlTimer],
+    "rightTrim": [0, 74, controlTimer],
     "leftTrim": [0, 78, controlTimer]
     }
 
