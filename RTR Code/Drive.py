@@ -32,10 +32,10 @@ cornerTypeCounter = 0
 
 corner_dict_steering = {
     "straight": [0,75,250],
-    "gentleLeft": [0, 90, 250],
-    "gentleRight": [0, 65, 250],
-    "rightTrim": [0, 70, 250],
-    "leftTrim": [0, 80, 250]
+    "gentleLeft": [0, 85, 250],
+    "gentleRight": [0, 70, 250],
+    "rightTrim": [0, 72, 250],
+    "leftTrim": [0, 78, 250]
     }
 
 corner_dict_motor = {
@@ -322,7 +322,7 @@ def processingPipeline(frame):
         
     #TODO if in recovery procedure, don't detect corner type, create flag for this
 
-    if cornerTypeCounter % 3 == 0 and average_left_slope is not None and average_right_slope is not None:
+    if cornerTypeCounter % 2 == 0 and average_left_slope is not None and average_right_slope is not None:
         cornerTypeDetection(average_left_slope, average_right_slope)
         cornerTypeCounter = 0
     
