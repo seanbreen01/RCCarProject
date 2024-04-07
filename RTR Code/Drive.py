@@ -26,7 +26,7 @@ cornerType = "straight"
 left_lane_slopes = []
 right_lane_slopes = []
 
-window_size = 5
+window_size = 3
 
 cornerTypeCounter = 0
 
@@ -288,7 +288,6 @@ def processingPipeline(frame):
 
 
     if houghLines_cpu is not None:
-        # TODO can this definiton be moved outside of function?
         line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
         new_left_slope, new_right_slope = laneSplit(line_img, houghLines_cpu)
 
@@ -323,7 +322,7 @@ def processingPipeline(frame):
         
     #TODO if in recovery procedure, don't detect corner type, create flag for this
 
-    if cornerTypeCounter % 7 == 0 and average_left_slope is not None and average_right_slope is not None:
+    if cornerTypeCounter % 3 == 0 and average_left_slope is not None and average_right_slope is not None:
         cornerTypeDetection(average_left_slope, average_right_slope)
         cornerTypeCounter = 0
     
