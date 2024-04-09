@@ -17,11 +17,9 @@ framerate = 30
 
 # Control theory varaible definitions
 maxSpeed = int(input("Set max speed 1600 - 2000: "))
+controlTimer = 100
 
 cornerType = "straight"
-
-# leftLaneSlope = 0
-# rightLaneSlope = 0
 
 left_lane_slopes = []
 right_lane_slopes = []
@@ -30,8 +28,6 @@ window_size = 2
 
 cornerTypeCounter = 0
 
-controlTimer = 100
-
 corner_dict_steering = {
     "straight": [0,76,controlTimer],
     "gentleLeft": [0, 80, controlTimer],
@@ -39,7 +35,8 @@ corner_dict_steering = {
     "rightTrim": [0, 74, controlTimer],
     "leftTrim": [0, 78, controlTimer],
     "stop": [0, 75, controlTimer],
-    "straightReverse": [0, 76, controlTimer]
+    "straightReverse": [0, 76, controlTimer],
+    "automatedRecovery": [0, 85, 3000]
     }
 
 corner_dict_motor = {
@@ -49,13 +46,16 @@ corner_dict_motor = {
     "rightTrim": [1, maxSpeed, controlTimer],
     "leftTrim": [1, maxSpeed, controlTimer],
     "stop": [1, 1500, controlTimer],
-    "straightReverse": [1, 1400, controlTimer]
+    "straightReverse": [1, 1400, controlTimer],
+    "automatedRecovery": [1, 1600, 3000]
     }
+
+centerMargin = 0.15
 
 i2cErrorCounter = 0
 
 # Aruco marker detection variable
-counter = 0
+arucoCounter = 0
 
 # Nvidia Jetson Nano i2c Bus 0
 bus = smbus.SMBus(0)
@@ -91,18 +91,16 @@ aruco_dict = aruco.Dictionary_get(ARUCO_DICT["DICT_4X4_50"])
 # Initialize the detector parameters using default values
 parameters = aruco.DetectorParameters_create()
 
-# CUDA setup stuff
-# TODO add all necessary functions and filters etc. here
+# CUDA setup 
+image_gpu = cv2.cuda_GpuMat() 
+
 gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=9, sigma2=5) #defines source image as 8-bit single colour channel (grayscale, and -1 is destination the same)
 
 cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=50, high_thresh=120)
-
+# 'Pants' shaped ROI
 region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1240,720], [980,300],[300,300], [40,720],  [0,720]], dtype=np.int32)
 
 #houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) 
-
-#gpu object
-image_gpu = cv2.cuda_GpuMat() 
 
 
 # I2C communications to Arduino UNO
@@ -126,7 +124,6 @@ def readFromArduino():
 
 
 # Video (GStreamer pipeline) setup
-    #--> need to identify framerate, resolution, etc. --> real world testing to inform, can be gradually refined
 def gstreamer_pipeline(sensor_id=0, sensor_mode=3, capture_width=1280, capture_height=720, display_width=640, display_height=480, framerate=30, flip_method=2):
     return (
         f'nvarguscamerasrc sensor-id={sensor_id} sensor-mode={sensor_mode} ! '
@@ -137,8 +134,6 @@ def gstreamer_pipeline(sensor_id=0, sensor_mode=3, capture_width=1280, capture_h
         f'videoconvert ! '
         f'video/x-raw, format=(string)BGR ! appsink'
     )
-
-# define a region of interest mask
 
 # TODO strip unnecessary code from this function
 def region_of_interest(img, vertices):
@@ -176,7 +171,7 @@ def drawLine(img, x, y, color=[0, 255, 0], thickness=20):
     b = lineParameters[1]
     
     maxY = img.shape[0]
-    maxX = img.shape[1]
+    #maxX = img.shape[1]
     y1 = maxY
     x1 = int((y1 - b)/m)
     # Trims line draw height, used only in debug output image
@@ -231,7 +226,7 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
 def processingPipeline(frame):
 
     global DEBUG
-    global counter
+    global arucoCounter
     global cornerTypeCounter
     global average_left_slope
     global average_right_slope
@@ -239,10 +234,8 @@ def processingPipeline(frame):
 
     cornerTypeCounter += 1
  
-    # 'Pants' shaped ROI
     # roi_image = region_of_interest(frame, [region_of_interest_vertices])
     # cv2.imshow('ROI', roi_image)
-
 
     image_gpu.upload(frame)
 
@@ -252,9 +245,8 @@ def processingPipeline(frame):
 
     cannyEdgesDetected_gpu = cannyEdgeDetector.detect(blurred_gpu)
 
-    #TODO how often
-    # Don't want to detect Aruco markers every frame
-    if counter % 10 == 0:
+    #TODO tune how often Aruco detection occurs
+    if arucoCounter % 10 == 0:
         corners, ids, rejected_img_points = aruco.detectMarkers(gray_gpu.download(), aruco_dict, parameters=parameters)
         if ids is not None and len(ids) > 0 and DEBUG == True:
             print("Marker found")
@@ -278,8 +270,8 @@ def processingPipeline(frame):
 
                 #TODO check aruco marker against stored sequence if this exists?
 
-        counter = 0
-    counter += 1
+        arucoCounter = 0
+    arucoCounter += 1
 
 
     edges = cannyEdgesDetected_gpu.download()
@@ -314,30 +306,27 @@ def processingPipeline(frame):
         average_left_slope = 0
         average_right_slope = 0
 
-    # Steps ultimately leading to hough lines / canny edge / whatever line detection method is chosen
-
-    # TODO
-    # If no detections for X frames, send control commands to Arduino to stop car, try to regain position on track (recovery protocol)
+    # TODO If no detections for X frames, send control commands to Arduino to stop car, try to regain position on track (recovery protocol)
 
     if cornerTypeCounter % 2 == 0 and average_left_slope is not None and average_right_slope is not None:
         cornerTypeDetection(average_left_slope, average_right_slope)
         cornerTypeCounter = 0
     
 
-
 # Function for corner type detection --> is hairpin, trigger these control responses
 def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
-    print("Corner type detection")
-    centerMargin = 0.15
 
     global cornerType
+    global centerMargin
     # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
 
     # TODO tune slope values, for additional corner types, and to ensure correct detection
+
     # Straight ahead
-    
     if leftLaneSlope <= -0.1 and leftLaneSlope > -0.3 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.3:
         print("Straight ahead")
+        cornerType = "straight" 
+        
         # TODO tune so its not 'overly' sensitive, adjust only when needed, not if its just not perfectly centered
         if leftLaneSlope > rightLaneSlope - centerMargin:
             # recenter on track, too far left
@@ -347,8 +336,6 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
             # recenter on track, too far right
             print("shift left slightly")
             cornerType = "leftTrim"
-
-        cornerType = "straight" 
 
     elif leftLaneSlope < -0.3 and rightLaneSlope < 0.3:
         print("Gentle Left - both negative slope detected, [but left lane is steeper than right lane, so gentle right turn detected]???")
@@ -379,6 +366,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
         cornerType = "gentleRight"
     elif np.isnan(leftLaneSlope) and np.isnan(rightLaneSlope):
         print("Completely off track, engage recovery protocol")
+        cornerType = "automatedRecovery"
 
     sendControlCommands(cornerType)
 
@@ -403,15 +391,6 @@ def sendControlCommands(cornerType = None):
 # Function for Aruco detection and storage to "list"/array etc. so when at full speed can do detections and say:
 # "passed aruco 3, then 4, then 5 etc. this is in correct (mapped) order" 
 # --> above needs more detailed consideration
-
-
-# Function for automated recovery should off track event happen for any reason
-def automatedRecovery():
-    print("Automated recovery protocol initiated")
-    #--> pre-written series of inputs until line(s) detected again and Aruco markers in sequence expected
-    #--R if 2 aruco markers are reverse of what should be seen, navigating track wrong direction, turn and re-continue in correct way
-
-    #TODO call send commands function with predefined maneouver loop until track re-located and direction of rotation about it validated
 
 def main():
     print('Main loop')
