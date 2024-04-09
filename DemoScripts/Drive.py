@@ -7,7 +7,6 @@ import time
 import numpy as np
 
 # All setup code here
-# Debug variable
 DEBUG = False
 
 # Video input setup
@@ -21,9 +20,9 @@ controlTimer = 100
 
 cornerType = "straight"
 
+# Used to average lane slopes over number of frames
 left_lane_slopes = []
 right_lane_slopes = []
-
 window_size = 2
 
 cornerTypeCounter = 0
@@ -94,7 +93,7 @@ parameters = aruco.DetectorParameters_create()
 # CUDA setup 
 image_gpu = cv2.cuda_GpuMat() 
 
-gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=9, sigma2=5) #defines source image as 8-bit single colour channel (grayscale, and -1 is destination the same)
+gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=9, sigma2=5) #defines source image as 8-bit single colour channel (grayscale, and -1 indicates destination image is the same)
 
 cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=50, high_thresh=120)
 # 'Pants' shaped ROI
@@ -156,7 +155,6 @@ def region_of_interest(img, vertices):
     cv2.fillPoly(mask, vertices, ignore_mask_color)
     
     #returning the image only where mask pixels are nonzero
-    # masked_image = cv2.bitwise_and(img, mask)
     masked_image = cv2.cuda.bitwise_and(img, mask)
     return masked_image
 
@@ -313,28 +311,32 @@ def processingPipeline(frame):
         cornerTypeCounter = 0
     
 
-# Function for corner type detection --> is hairpin, trigger these control responses
+# Function for corner type detection
+"""
+In normal 'track straight ahead scenario' in which both lanes are present and detected
+The Left lane slope should be slightly negative, and the right lane slope should be slightly positive
+"""
 def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
 
     global cornerType
     global centerMargin
     # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
 
-    # TODO tune slope values, for additional corner types, and to ensure correct detection
+    # TODO tune slope values for additional corner types, and to ensure correct detection
 
     # Straight ahead
-    if leftLaneSlope <= -0.1 and leftLaneSlope > -0.3 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.3:
+    if leftLaneSlope <= -0.1 and leftLaneSlope > -0.35 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.35:
         print("Straight ahead")
         cornerType = "straight" 
-        
+
         # TODO tune so its not 'overly' sensitive, adjust only when needed, not if its just not perfectly centered
-        if leftLaneSlope > rightLaneSlope - centerMargin:
+        if abs(leftLaneSlope) > rightLaneSlope + centerMargin:
             # recenter on track, too far left
-            print("shift right slightly")
+            print("Shift right slightly")
             cornerType = "rightTrim"
-        elif rightLaneSlope > leftLaneSlope + centerMargin:
+        elif rightLaneSlope > abs(leftLaneSlope) + centerMargin:
             # recenter on track, too far right
-            print("shift left slightly")
+            print("Shift left slightly")
             cornerType = "leftTrim"
 
     elif leftLaneSlope < -0.3 and rightLaneSlope < 0.3:
@@ -344,7 +346,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
         print("Gentle Right - both positive slopes ") 
         cornerType = "gentleRight"
     # TODO need data on this to align values properly
-    elif leftLaneSlope < -10 and rightLaneSlope < - 10:
+    elif leftLaneSlope < -10 and rightLaneSlope < -10:
         print("90 Degree Right - both strongly negative slopes")
             
     elif leftLaneSlope > 10 and rightLaneSlope > 10:
@@ -359,10 +361,10 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     
 
     elif np.isnan(leftLaneSlope) and rightLaneSlope is not None:
-        print("No left lane, off track to left side of course (left lane incorrectly identified as right lane?)")
+        print("No left lane, off track to left side of course (left lane incorrectly identified as right lane)")
         cornerType = "gentleLeft"
     elif np.isnan(rightLaneSlope) and leftLaneSlope is not None:
-        print("No right lane, off track to right side of course (right lane incorrectly identified as left lane?)")
+        print("No right lane, off track to right side of course (right lane incorrectly identified as left lane)")
         cornerType = "gentleRight"
     elif np.isnan(leftLaneSlope) and np.isnan(rightLaneSlope):
         print("Completely off track, engage recovery protocol")
@@ -371,8 +373,6 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     sendControlCommands(cornerType)
 
 # Function to send control commands
-    #--> non-blocking if series of commands is needed in eventual 'racing-line' following implementation
-    #--> format of sent commands already known
 def sendControlCommands(cornerType = None):
     global i2cErrorCounter
 
@@ -390,7 +390,6 @@ def sendControlCommands(cornerType = None):
 
 # Function for Aruco detection and storage to "list"/array etc. so when at full speed can do detections and say:
 # "passed aruco 3, then 4, then 5 etc. this is in correct (mapped) order" 
-# --> above needs more detailed consideration
 
 def main():
     print('Main loop')
@@ -410,6 +409,7 @@ def main():
                 processingPipeline(frame)
                 #timeEnd = time.time()
                 #print('FPS:', 1/(timeEnd-timeStart) )
+                #print('Time taken to process frame:', timeEnd-timeStart)
 
                 #cv2.imshow("Debug", processed_frame_results)
 
