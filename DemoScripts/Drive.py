@@ -49,7 +49,7 @@ corner_dict_motor = {
     "automatedRecovery": [1, 1600, 3000]
     }
 
-centerMargin = 0.15
+centerMargin = 0.10
 
 i2cErrorCounter = 0
 
@@ -339,10 +339,10 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
             print("Shift left slightly")
             cornerType = "leftTrim"
 
-    elif leftLaneSlope < -0.3 and rightLaneSlope < 0.3:
-        print("Gentle Left - both negative slope detected, [but left lane is steeper than right lane, so gentle right turn detected]???")
+    elif leftLaneSlope < -0.35 and rightLaneSlope < 0.15:
+        print("Gentle Left - both negative slope detected")
         cornerType = "gentleLeft"
-    elif leftLaneSlope > -0.3 and rightLaneSlope > 0.3:
+    elif leftLaneSlope > -0.15 and rightLaneSlope > 0.35:
         print("Gentle Right - both positive slopes ") 
         cornerType = "gentleRight"
     # TODO need data on this to align values properly
@@ -361,10 +361,10 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     
 
     elif np.isnan(leftLaneSlope) and rightLaneSlope is not None:
-        print("No left lane, off track to left side of course (left lane incorrectly identified as right lane)")
+        print("No left lane detected, off track to left side of course (left lane incorrectly identified as right lane)")
         cornerType = "gentleLeft"
     elif np.isnan(rightLaneSlope) and leftLaneSlope is not None:
-        print("No right lane, off track to right side of course (right lane incorrectly identified as left lane)")
+        print("No right lane detected, off track to right side of course (right lane incorrectly identified as left lane)")
         cornerType = "gentleRight"
     elif np.isnan(leftLaneSlope) and np.isnan(rightLaneSlope):
         print("Completely off track, engage recovery protocol")
