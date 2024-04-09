@@ -99,7 +99,7 @@ cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=50, high_thresh=
 
 region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1240,720], [980,300],[300,300], [40,720],  [0,720]], dtype=np.int32)
 
-#houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) # TODO what is doSort, maxLines and tune further
+#houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) 
 
 #gpu object
 image_gpu = cv2.cuda_GpuMat() 
@@ -115,8 +115,6 @@ def writeToArduino(valueToWrite):
         bytesToWrite.extend([highByte, lowByte])
 
     # Send the byte array
-    #print('Bytes: ')    #TODO add flag for debug
-    #print(bytesToWrite)
     bus.write_i2c_block_data(address, 0, bytesToWrite)
 
 def readFromArduino():
@@ -195,7 +193,6 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
     rightPointsX = []
     rightPointsY = []
 
-    # TODO
     mLeft = []
     mRight = []
 
@@ -203,32 +200,32 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
         for x1,y1,x2,y2 in line:
             m = (y1 - y2)/(x1 - x2) # slope
             
-            # TODO tune these m values, especial care needed
+            # TODO tune these m values
             if m < -0.1:
-                leftPointsX.append(x1)
-                leftPointsY.append(y1)
-                leftPointsX.append(x2)
-                leftPointsY.append(y2)
                 mLeft.append(m)
-                
+                if DEBUG == True:
+                    leftPointsX.append(x1)
+                    leftPointsY.append(y1)
+                    leftPointsX.append(x2)
+                    leftPointsY.append(y2)
+                 
             elif m > 0.1:
-                rightPointsX.append(x1)
-                rightPointsY.append(y1)
-                rightPointsX.append(x2)
-                rightPointsY.append(y2)
                 mRight.append(m)
-    
-    if DEBUG == True:
-        drawLine(img, leftPointsX, leftPointsY, color, thickness)
-        drawLine(img, rightPointsX, rightPointsY, color, thickness)
-
-    
+                if DEBUG == True:
+                    rightPointsX.append(x1)
+                    rightPointsY.append(y1)
+                    rightPointsX.append(x2)
+                    rightPointsY.append(y2)
+                
     avg_left_slope = np.mean(mLeft)
     avg_right_slope = np.mean(mRight)
 
-    #print('left', avg_left_slope)
-    #print('right', avg_right_slope)
-
+    if DEBUG == True:
+        drawLine(img, leftPointsX, leftPointsY, color, thickness)
+        drawLine(img, rightPointsX, rightPointsY, color, thickness)
+        print('Avg Left Slope: ', avg_left_slope)
+        print('Avg Right Slope: ', avg_right_slope)
+    
     return avg_left_slope, avg_right_slope
 
 def processingPipeline(frame):
