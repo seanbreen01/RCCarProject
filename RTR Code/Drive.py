@@ -37,7 +37,9 @@ corner_dict_steering = {
     "gentleLeft": [0, 80, controlTimer],
     "gentleRight": [0, 72, controlTimer],
     "rightTrim": [0, 74, controlTimer],
-    "leftTrim": [0, 78, controlTimer]
+    "leftTrim": [0, 78, controlTimer],
+    "stop": [0, 75, controlTimer],
+    "straightReverse": [0, 76, controlTimer]
     }
 
 corner_dict_motor = {
@@ -45,7 +47,9 @@ corner_dict_motor = {
     "gentleLeft": [1, maxSpeed, controlTimer],
     "gentleRight": [1, maxSpeed, controlTimer],
     "rightTrim": [1, maxSpeed, controlTimer],
-    "leftTrim": [1, maxSpeed, controlTimer]
+    "leftTrim": [1, maxSpeed, controlTimer],
+    "stop": [1, 1500, controlTimer],
+    "straightReverse": [1, 1400, controlTimer]
     }
 
 i2cErrorCounter = 0
