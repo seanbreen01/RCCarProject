@@ -255,7 +255,6 @@ def processingPipeline(frame):
     #TODO how often
     # Don't want to detect Aruco markers every frame
     if counter % 10 == 0:
-        print("Aruco Detection")
         corners, ids, rejected_img_points = aruco.detectMarkers(gray_gpu.download(), aruco_dict, parameters=parameters)
         if ids is not None and len(ids) > 0 and DEBUG == True:
             print("Marker found")
@@ -318,12 +317,7 @@ def processingPipeline(frame):
     # Steps ultimately leading to hough lines / canny edge / whatever line detection method is chosen
 
     # TODO
-    # If line(s) detected, can go to slope detection step
-    # If not, log no lines detected, and continue to next frame
-    # Check also if no lines detected has happpened before
     # If no detections for X frames, send control commands to Arduino to stop car, try to regain position on track (recovery protocol)
-        
-    #TODO if in recovery procedure, don't detect corner type, create flag for this
 
     if cornerTypeCounter % 2 == 0 and average_left_slope is not None and average_right_slope is not None:
         cornerTypeDetection(average_left_slope, average_right_slope)
@@ -343,7 +337,6 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     # Straight ahead
     
     if leftLaneSlope <= -0.1 and leftLaneSlope > -0.3 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.3:
-        # commands to steering and motor to continue straight ahead, maybe increase speed?
         print("Straight ahead")
         # TODO tune so its not 'overly' sensitive, adjust only when needed, not if its just not perfectly centered
         if leftLaneSlope > rightLaneSlope - centerMargin:
@@ -370,7 +363,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     elif leftLaneSlope > 10 and rightLaneSlope > 10:
         print("90 Degree Left - both strongly positive slopes")    
 
-    # TODO logic for hairpins seems dodgy at best, review with test footage
+    # TODO logic for hairpins needs review with test footage
     elif leftLaneSlope < -10 and rightLaneSlope > 100:
         print("Right Entry Hairpin detected - left lane strongly negative, right lane almost flat horizontal line (close to infinite slope)")
         #--> send control commands to Arduino to slow down, turn, etc.
@@ -393,7 +386,6 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     #--> non-blocking if series of commands is needed in eventual 'racing-line' following implementation
     #--> format of sent commands already known
 def sendControlCommands(cornerType = None):
-# TODO define time to hold variable rather than hardcoded 150ms values --> recipe for disaster
     global i2cErrorCounter
 
     try:
@@ -439,8 +431,6 @@ def main():
                 processingPipeline(frame)
                 #timeEnd = time.time()
                 #print('FPS:', 1/(timeEnd-timeStart) )
-
-                # ^ Will return arrays/lists with points that equate to detected lines
 
                 #cv2.imshow("Debug", processed_frame_results)
 
