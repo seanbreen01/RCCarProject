@@ -142,6 +142,7 @@ def region_of_interest(img, vertices):
     The rest of the image is set to black.
     """
     #define a blank mask
+    # TODO definintion could be moved outside of function to save processing time?
     mask = np.zeros_like(img)   
     
     #define a 3 channel or 1 channel color to fill the mask with depending on the input image
