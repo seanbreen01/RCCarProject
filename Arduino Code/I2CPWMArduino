@@ -23,8 +23,8 @@ void setup()
 }
 
 //TODO adjust these
-int neutralSteering = 85;  //Value of steering and motor variables when idle
-int neutralMotor = 1000;
+int neutralSteering = 75;  //Value of steering and motor variables when idle
+int neutralMotor = 1500;
 float neutralDuration = 1000;
 
 float steeringTimer = 0.0;  //used to determine how much longer to hold current values for steering input and motor speed

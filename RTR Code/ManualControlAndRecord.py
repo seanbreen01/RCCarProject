@@ -40,20 +40,25 @@ def is_data():
     return select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], [])
 
 def record_video(output_file):
+
+    xres = 1920
+    yres = 1080
+    frames = 30
+
     global stop_video
     # Define the GStreamer pipeline for the CSI camera
     gstreamer_pipeline = (
         "nvarguscamerasrc ! "
-        "video/x-raw(memory:NVMM), width=(int){xres}}, height=(int){yres}}, format=(string)NV12, framerate=(fraction){frames}/1 ! "
-        "nvvidconv flip-method=0 ! "
-        "video/x-raw, width=(int)1920, height=(int)1080, format=(string)BGRx ! "
+        "video/x-raw(memory:NVMM), width=(int){xres}, height=(int){yres}, format=(string)NV12, framerate=(fraction){frames}/1 ! "
+        "nvvidconv flip-method=2 ! "
+        "video/x-raw, width=(int){xres}, height=(int){yres}, format=(string)BGRx ! "
         "videoconvert ! "
         "video/x-raw, format=(string)BGR ! appsink"
     )
 
     cap = cv2.VideoCapture(gstreamer_pipeline, cv2.CAP_GSTREAMER)
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(output_file, fourcc, frames, (xres, yres))
+    out = cv2.VideoWriter(output_file, fourcc, 30.0 , (xres, yres))
 
     if not cap.isOpened():
         print("Cannot open camera")

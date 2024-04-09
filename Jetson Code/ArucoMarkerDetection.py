@@ -27,16 +27,16 @@ ARUCO_DICT = {
 #	"DICT_APRILTAG_36h11": cv2.aruco.DICT_APRILTAG_36h11
 }
 
-def find_aruco_markers(image_path):
+def find_aruco_markers(frame):
     # Load the image
-    image = cv2.imread(image_path)
+    # image = cv2.imread(image_path)
 
-    if image is None:
+    if frame is None:
         print("Could not open or find the image")
         sys.exit()
 
     # Convert to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
     # Below works for opencv versions 4.7.x and beyond, commented version should work for those before that
     aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
@@ -66,19 +66,35 @@ def find_aruco_markers(image_path):
             rect = cv2.minAreaRect(corner)
             box = cv2.boxPoints(rect)
             box = np.int0(box)
-            cv2.drawContours(image, [box], 0, (0, 0, 255), 2)
+            cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
 
             text_position = (int(corner[0][0]), int(corner[0][1]))
             # Draw marker ID
-            cv2.putText(image, str(ids[i][0]), text_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+            cv2.putText(frame, str(ids[i][0]), text_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
 
-        cv2.imshow('Detected Markers', image)
+        cv2.imshow('Detected Markers', frame)
         cv2.waitKey(0)
-        cv2.destroyAllWindows()
+
 
     else:
         print("No marker present in frame")
 
 # Replace 'path_to_image.jpg' with the path to your input image
 #find_aruco_markers('./Markers/Marker_1.png')
-find_aruco_markers("./image.png")
+
+cap = cv2.VideoCapture(0)	
+if cap.isOpened():
+    while True:
+        ret, frame = cap.read()
+        try:
+            cv2.imshow('frame', frame)
+            find_aruco_markers(frame)
+            
+        finally:
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+cap.release()
+cv2.destroyAllWindows()
+
+# find_aruco_markers("./image.png")
