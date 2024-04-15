@@ -265,7 +265,7 @@ def processingPipeline(frame):
         elif DEBUG == True:
             print("No marker present in frame")
 
-                #TODO check aruco marker against stored sequence if this exists?
+                #TODO check aruco marker against stored sequence if this exists? --> stub code in CPU debugging function
 
         arucoCounter = 0
     arucoCounter += 1
@@ -328,11 +328,11 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
 
         if abs(leftLaneSlope) > rightLaneSlope + centerMargin:
             # recenter on track, too far left
-            print("Shift right slightly")
+            print("Trim right slightly")
             cornerType = "rightTrim"
         elif rightLaneSlope > abs(leftLaneSlope) + centerMargin:
             # recenter on track, too far right
-            print("Shift left slightly")
+            print("Trim left slightly")
             cornerType = "leftTrim"
 
     elif leftLaneSlope < -0.35 and rightLaneSlope < 0.15:
