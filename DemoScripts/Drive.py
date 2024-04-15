@@ -194,7 +194,6 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
         for x1,y1,x2,y2 in line:
             m = (y1 - y2)/(x1 - x2) # slope
             
-            # TODO tune these m values
             if m < -0.1:
                 mLeft.append(m)
                 if DEBUG == True:
@@ -244,7 +243,6 @@ def processingPipeline(frame):
 
     cannyEdgesDetected_gpu = cannyEdgeDetector.detect(blurred_gpu)
 
-    #TODO tune how often Aruco detection occurs
     if arucoCounter % 10 == 0:
         corners, ids, rejected_img_points = aruco.detectMarkers(gray_gpu.download(), aruco_dict, parameters=parameters)
         if ids is not None and len(ids) > 0 and DEBUG == True:
@@ -305,8 +303,6 @@ def processingPipeline(frame):
         average_left_slope = 0
         average_right_slope = 0
 
-    # TODO If no detections for X frames, send control commands to Arduino to stop car, try to regain position on track (recovery protocol)
-
     if cornerTypeCounter % 2 == 0 and average_left_slope is not None and average_right_slope is not None:
         cornerTypeDetection(average_left_slope, average_right_slope)
         cornerTypeCounter = 0
@@ -321,16 +317,15 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
 
     global cornerType
     global centerMargin
-    # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
+    # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theory but implementation may be difficult & lower maximum performance ceiling?
 
-    # TODO tune slope values for additional corner types, and to ensure correct detection
+    # TODO tune slope values for 90 degree corners, hairpins, etc.
 
     # Straight ahead
     if leftLaneSlope <= -0.1 and leftLaneSlope > -0.35 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.35:
         print("Straight ahead")
         cornerType = "straight" 
 
-        # TODO tune so its not 'overly' sensitive, adjust only when needed, not if its just not perfectly centered
         if abs(leftLaneSlope) > rightLaneSlope + centerMargin:
             # recenter on track, too far left
             print("Shift right slightly")
