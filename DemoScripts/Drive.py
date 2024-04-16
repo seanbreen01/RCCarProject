@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 # All setup code here
-DEBUG = False
+DEBUG = True
 
 # Video input setup
 xres = 1280	
