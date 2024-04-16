@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 # All setup code here
-DEBUG = False
+DEBUG = True
 
 # Video input setup
 xres = 1280	
@@ -15,7 +15,10 @@ yres = 720
 framerate = 30
 
 # Control theory varaible definitions
-maxSpeed = int(input("Set max speed 1600 - 2000: "))
+if DEBUG == True:
+    maxSpeed = 1650
+else:
+    maxSpeed = int(input("Set max speed 1600 - 2000: "))
 controlTimer = 125
 
 cornerType = "straight"
@@ -23,9 +26,12 @@ cornerType = "straight"
 # Used to average lane slopes over number of frames
 left_lane_slopes = []
 right_lane_slopes = []
-window_size = 1
+window_size = 3
 
 cornerTypeCounter = 0
+
+average_left_slope = None
+average_right_slope = None
 
 corner_dict_steering = {
     "straight": [0,76,controlTimer],
@@ -93,11 +99,11 @@ parameters = aruco.DetectorParameters_create()
 # CUDA setup 
 image_gpu = cv2.cuda_GpuMat() 
 
-gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=9, sigma2=5) #defines source image as 8-bit single colour channel (grayscale, and -1 indicates destination image is the same)
+gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=3, sigma2=3) #defines source image as 8-bit single colour channel (grayscale, and -1 indicates destination image is the same)
 
-cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=20, high_thresh=120)
+cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=40, high_thresh=120)
 # 'Pants' shaped ROI
-region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1240,720], [980,300],[300,300], [40,720],  [0,720]], dtype=np.int32)
+region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,600], [1240,600], [980,300],[300,300], [40,600],  [0,600]], dtype=np.int32)
 
 #houghLinesDetector = cv2.cuda.createHoughLinesDetector(rho=1, theta=np.pi/180, threshold=50, doSort=True, maxLines=50) 
 
@@ -194,7 +200,7 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
         for x1,y1,x2,y2 in line:
             m = (y1 - y2)/(x1 - x2) # slope
             
-            if m < -0.1:
+            if m < -0.1 and m > -5:
                 mLeft.append(m)
                 if DEBUG == True:
                     leftPointsX.append(x1)
@@ -202,7 +208,7 @@ def laneSplit(img, lines, color=[0, 255, 0], thickness=20):
                     leftPointsX.append(x2)
                     leftPointsY.append(y2)
                  
-            elif m > 0.1:
+            elif m > 0.1 and m < 5:
                 mRight.append(m)
                 if DEBUG == True:
                     rightPointsX.append(x1)
@@ -274,8 +280,8 @@ def processingPipeline(frame):
     edges = cannyEdgesDetected_gpu.download()
 
     roi_image = region_of_interest(edges, [region_of_interest_vertices])
-    #cv2.imshow('roi', roi_image)
-    houghLines_cpu = cv2.HoughLinesP(roi_image, rho=1, theta=np.pi/180, minLineLength=50, maxLineGap=30)
+    cv2.imshow('roi', roi_image)
+    houghLines_cpu = cv2.HoughLinesP(roi_image, rho=1, theta=np.pi/180, threshold=20, minLineLength=40, maxLineGap=10)
 
 
     if houghLines_cpu is not None:
@@ -286,22 +292,28 @@ def processingPipeline(frame):
         left_lane_slopes.append(new_left_slope)
         if len(left_lane_slopes) > window_size:
             left_lane_slopes.pop(0)
-        average_left_slope = sum(left_lane_slopes) / len(left_lane_slopes)
+        if np.all(np.isnan(left_lane_slopes)):
+            average_left_slope = np.nan
+        else:
+            average_left_slope = np.nansum(left_lane_slopes) / len(left_lane_slopes)
 
         # Update right lane slopes
         right_lane_slopes.append(new_right_slope)
         if len(right_lane_slopes) > window_size:
             right_lane_slopes.pop(0)
-        average_right_slope = sum(right_lane_slopes) / len(right_lane_slopes)
+        if np.all(np.isnan(right_lane_slopes)):
+            average_right_slope = np.nan
+        else:
+            average_right_slope = np.nansum(right_lane_slopes) / len(right_lane_slopes)
 
         # Used for debug purposes only
         #cv2.imshow('Hough', line_img)
-        #combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
-        #cv2.imshow('Combined', combined)
+        combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
+        cv2.imshow('Combined', combined)
     else:
-        #combined = frame
-        average_left_slope = 0
-        average_right_slope = 0
+        combined = frame
+        # average_left_slope = 0
+        # average_right_slope = 0
 
     if cornerTypeCounter % 2 == 0 and average_left_slope is not None and average_right_slope is not None:
         cornerTypeDetection(average_left_slope, average_right_slope)
@@ -322,7 +334,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     # TODO tune slope values for 90 degree corners, hairpins, etc.
 
     # Straight ahead
-    if leftLaneSlope <= -0.1 and leftLaneSlope > -0.35 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.35:
+    if leftLaneSlope <= -0.1 and leftLaneSlope > -0.4 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.4:
         print("Straight ahead")
         cornerType = "straight" 
 
@@ -335,10 +347,10 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
             print("Trim left slightly")
             cornerType = "leftTrim"
 
-    elif leftLaneSlope < -0.35 and rightLaneSlope < 0.15:
+    elif leftLaneSlope < -0.4 and rightLaneSlope < 0.15:
         print("Gentle Left - both negative slope detected")
         cornerType = "gentleLeft"
-    elif leftLaneSlope > -0.15 and rightLaneSlope > 0.35:
+    elif leftLaneSlope > -0.15 and rightLaneSlope > 0.4:
         print("Gentle Right - both positive slopes ") 
         cornerType = "gentleRight"
     # TODO need data on this to align values properly
@@ -358,13 +370,15 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
 
     elif np.isnan(leftLaneSlope) and rightLaneSlope is not None:
         print("No left lane detected, off track to left side of course (left lane incorrectly identified as right lane)")
-        cornerType = "gentleLeft"
+        cornerType = "leftTrim"
     elif np.isnan(rightLaneSlope) and leftLaneSlope is not None:
         print("No right lane detected, off track to right side of course (right lane incorrectly identified as left lane)")
-        cornerType = "gentleRight"
+        cornerType = "rightTrim"
     elif np.isnan(leftLaneSlope) and np.isnan(rightLaneSlope):
         print("Completely off track, engage recovery protocol")
         cornerType = "automatedRecovery"
+    else:
+        print("No valid detection of lines made")
 
     sendControlCommands(cornerType)
 
@@ -376,11 +390,11 @@ def sendControlCommands(cornerType = None):
         writeToArduino(corner_dict_steering[cornerType])
         writeToArduino(corner_dict_motor[cornerType])
     except OSError:
-        print("Command to Arudino failed to transmit")
+        #print("Command to Arudino failed to transmit")
         i2cErrorCounter += 1
         if i2cErrorCounter > 5:
-            print("I2C failure detected, ending script here")
             if DEBUG == False:
+                print("I2C failure detected, ending script here")
                 sys.exit()
 
 
@@ -391,10 +405,10 @@ def main():
     print('Main loop')
     pipeline = gstreamer_pipeline(capture_width=xres, capture_height=yres, display_width=xres, display_height=yres, framerate=framerate, flip_method=2)
 
-    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+    #cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
 
-    #video_path = 'Videos/fulltrack3720_30.avi' 
-    #cap = cv2.VideoCapture(video_path)
+    video_path = 'Videos/fulltrack3720_30.avi' 
+    cap = cv2.VideoCapture(video_path)
 
     if cap.isOpened():
         try:
