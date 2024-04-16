@@ -275,7 +275,7 @@ def processingPipeline(frame):
 
     roi_image = region_of_interest(edges, [region_of_interest_vertices])
     #cv2.imshow('roi', roi_image)
-    houghLines_cpu = cv2.HoughLinesP(roi_image, 1, np.pi/180, 50, maxLineGap=30)
+    houghLines_cpu = cv2.HoughLinesP(roi_image, rho=1, theta=np.pi/180, minLineLength=50, maxLineGap=30)
 
 
     if houghLines_cpu is not None:

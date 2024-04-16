@@ -9,7 +9,7 @@ address = 0x40
 
 # Control theory varaible definitions
 maxSpeed = int(input("Set speed 1000 - 1400 for reverse, 1600 - 2000 for forward: "))
-controlTimer = 3000
+controlTimer = 15000
 
 corner_dict_steering = {
     "straight": [0,76,controlTimer],
@@ -53,13 +53,13 @@ def readFromArduino():
     return number
 
 def main():
-    print("Starting straight line")
-    writeToArduino(corner_dict_steering["gentleLeft"])
+    print("Starting circle")
+    writeToArduino([0,85,controlTimer])
     writeToArduino(corner_dict_motor["gentleLeft"])
-    time.sleep(3)
+    time.sleep(10)
     writeToArduino(corner_dict_steering["stop"])
     writeToArduino(corner_dict_motor["stop"])
-    print("Straight line complete")
+    print("Circle complete")
 
 if __name__ == "__main__":
     main()
