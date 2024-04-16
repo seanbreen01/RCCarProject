@@ -49,7 +49,7 @@ corner_dict_motor = {
     "automatedRecovery": [1, 1600, 3000]
     }
 
-centerMargin = 0.10
+centerMargin = 0.07
 
 i2cErrorCounter = 0
 
@@ -95,7 +95,7 @@ image_gpu = cv2.cuda_GpuMat()
 
 gaussian_filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1, -1, ksize=(9,9), sigma1=9, sigma2=5) #defines source image as 8-bit single colour channel (grayscale, and -1 indicates destination image is the same)
 
-cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=50, high_thresh=120)
+cannyEdgeDetector = cv2.cuda.createCannyEdgeDetector(low_thresh=20, high_thresh=120)
 # 'Pants' shaped ROI
 region_of_interest_vertices = np.array([[0,80], [1280,80], [1280,720], [1240,720], [980,300],[300,300], [40,720],  [0,720]], dtype=np.int32)
 
