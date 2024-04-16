@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 # All setup code here
-DEBUG = True
+DEBUG = False
 
 # Video input setup
 xres = 1280	
@@ -280,7 +280,7 @@ def processingPipeline(frame):
     edges = cannyEdgesDetected_gpu.download()
 
     roi_image = region_of_interest(edges, [region_of_interest_vertices])
-    cv2.imshow('roi', roi_image)
+    #cv2.imshow('roi', roi_image)
     houghLines_cpu = cv2.HoughLinesP(roi_image, rho=1, theta=np.pi/180, threshold=20, minLineLength=40, maxLineGap=10)
 
 
@@ -308,10 +308,11 @@ def processingPipeline(frame):
 
         # Used for debug purposes only
         #cv2.imshow('Hough', line_img)
-        combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
-        cv2.imshow('Combined', combined)
+        #combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
+        #cv2.imshow('Combined', combined)
     else:
-        combined = frame
+        pass
+        #combined = frame
         # average_left_slope = 0
         # average_right_slope = 0
 
@@ -405,10 +406,10 @@ def main():
     print('Main loop')
     pipeline = gstreamer_pipeline(capture_width=xres, capture_height=yres, display_width=xres, display_height=yres, framerate=framerate, flip_method=2)
 
-    #cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
 
-    video_path = 'Videos/fulltrack3720_30.avi' 
-    cap = cv2.VideoCapture(video_path)
+    #video_path = 'Videos/fulltrack3720_30.avi' 
+    #cap = cv2.VideoCapture(video_path)
 
     if cap.isOpened():
         try:
