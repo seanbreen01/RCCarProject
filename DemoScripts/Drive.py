@@ -16,14 +16,14 @@ framerate = 30
 
 # Control theory varaible definitions
 maxSpeed = int(input("Set max speed 1600 - 2000: "))
-controlTimer = 150
+controlTimer = 125
 
 cornerType = "straight"
 
 # Used to average lane slopes over number of frames
 left_lane_slopes = []
 right_lane_slopes = []
-window_size = 3
+window_size = 1
 
 cornerTypeCounter = 0
 
@@ -49,7 +49,7 @@ corner_dict_motor = {
     "automatedRecovery": [1, 1600, 3000]
     }
 
-centerMargin = 0.07
+centerMargin = 0.05
 
 i2cErrorCounter = 0
 
