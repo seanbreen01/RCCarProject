@@ -348,7 +348,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
             print("Trim left slightly")
             cornerType = "leftTrim"
 
-    elif leftLaneSlope < -0.4 and rightLaneSlope < 0.15:
+    elif leftLaneSlope < -0.4 and (rightLaneSlope < 0.15 or rightLaneSlope > 0.3):
         print("Gentle Left - both negative slope detected")
         cornerType = "gentleLeft"
     elif leftLaneSlope > -0.15 and rightLaneSlope > 0.4:
@@ -380,6 +380,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
         cornerType = "automatedRecovery"
     else:
         print("No valid detection of lines made")
+        cornerType = "stop"
 
     sendControlCommands(cornerType)
 
