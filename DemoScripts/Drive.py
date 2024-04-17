@@ -46,8 +46,8 @@ corner_dict_steering = {
 
 corner_dict_motor = {
     "straight": [1,maxSpeed,controlTimer],
-    "gentleLeft": [1, maxSpeed, controlTimer],
-    "gentleRight": [1, maxSpeed, controlTimer],
+    "gentleLeft": [1, maxSpeed-20, controlTimer],
+    "gentleRight": [1, maxSpeed-20, controlTimer],
     "rightTrim": [1, maxSpeed, controlTimer],
     "leftTrim": [1, maxSpeed, controlTimer],
     "stop": [1, 1500, controlTimer],
@@ -314,8 +314,8 @@ def processingPipeline(frame):
 
         # Used for debug purposes only
         #cv2.imshow('Hough', line_img)
-        #combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
-        #cv2.imshow('Combined', combined)
+        combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
+        cv2.imshow('Combined', combined)
     else:
         pass
         #combined = frame
@@ -341,7 +341,7 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     # TODO tune slope values for 90 degree corners, hairpins, etc.
 
     # Straight ahead
-    if leftLaneSlope <= -0.1 and leftLaneSlope > -0.4 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.4:
+    if leftLaneSlope <= -0.1 and leftLaneSlope > -0.5 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.5:
         print("Straight ahead")
         cornerType = "straight" 
 
@@ -354,12 +354,13 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
             print("Trim left slightly")
             cornerType = "leftTrim"
 
-    elif leftLaneSlope < -0.4 and rightLaneSlope < 0.3:
-        print("Gentle Left - both negative slope detected")
-        cornerType = "gentleLeft"
-    elif leftLaneSlope > -0.3 and rightLaneSlope > 0.4:
+    elif leftLaneSlope < -0.5 and rightLaneSlope < 0.3:
         print("Gentle Right - both positive slopes ") 
         cornerType = "gentleRight"
+
+    elif leftLaneSlope > -0.3 and rightLaneSlope > 0.5:
+        print("Gentle Left - both negative slope detected")
+        cornerType = "gentleLeft"
 
     # TODO need data on this to align values properly
     # elif leftLaneSlope < -10 and rightLaneSlope < -10:
@@ -377,11 +378,13 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     
 
     elif np.isnan(leftLaneSlope) and rightLaneSlope is not None:
-        print("No left lane detected, off track to left side of course (left lane incorrectly identified as right lane)")
-        cornerType = "rightTrim"
-    elif np.isnan(rightLaneSlope) and leftLaneSlope is not None:
-        print("No right lane detected, off track to right side of course (right lane incorrectly identified as left lane)")
+        #print("No left lane detected, off track to left side of course (left lane incorrectly identified as right lane)")
+        print("No left lane - left trim")
         cornerType = "leftTrim"
+    elif np.isnan(rightLaneSlope) and leftLaneSlope is not None:
+        #print("No right lane detected, off track to right side of course (right lane incorrectly identified as left lane)")
+        print("No right lane - right trim")
+        cornerType = "rightTrim"
     elif np.isnan(leftLaneSlope) and np.isnan(rightLaneSlope):
         print("Completely off track, engage recovery protocol")
         cornerType = "automatedRecovery"
@@ -414,10 +417,10 @@ def main():
     print('Main loop')
     pipeline = gstreamer_pipeline(capture_width=xres, capture_height=yres, display_width=xres, display_height=yres, framerate=framerate, flip_method=2)
 
-    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+    #cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
 
-    #video_path = 'Videos/fulltrack3720_30.avi' 
-    #cap = cv2.VideoCapture(video_path)
+    video_path = 'Videos/fulltrack3720_30.avi' 
+    cap = cv2.VideoCapture(video_path)
 
     if cap.isOpened():
         try:
@@ -440,7 +443,7 @@ def main():
             global arucoList
             cap.release()
             cv2.destroyAllWindows()
-            print("Arucod detectuon list: ", arucoList)
+            print("Aruco detectuon list: ", arucoList)
     else:
         print("cap.isOpened() Error")
 
