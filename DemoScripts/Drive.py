@@ -26,7 +26,7 @@ cornerType = "straight"
 # Used to average lane slopes over number of frames
 left_lane_slopes = []
 right_lane_slopes = []
-window_size = 3
+window_size = 2
 
 cornerTypeCounter = 0
 
@@ -55,7 +55,7 @@ corner_dict_motor = {
     "automatedRecovery": [1, 1600, 3000]
     }
 
-centerMargin = 0.05
+centerMargin = 0.1
 
 i2cErrorCounter = 0
 
