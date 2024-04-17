@@ -13,7 +13,7 @@ controlTimer = 15000
 
 corner_dict_steering = {
     "straight": [0,76,controlTimer],
-    "gentleLeft": [0, 80, controlTimer],
+    "gentleLeft": [0, 85, controlTimer],
     "gentleRight": [0, 72, controlTimer],
     "rightTrim": [0, 74, controlTimer],
     "leftTrim": [0, 78, controlTimer],
@@ -56,7 +56,7 @@ def main():
     print("Starting circle")
     writeToArduino([0,85,controlTimer])
     writeToArduino(corner_dict_motor["gentleLeft"])
-    time.sleep(10)
+    time.sleep(15)
     writeToArduino(corner_dict_steering["stop"])
     writeToArduino(corner_dict_motor["stop"])
     print("Circle complete")

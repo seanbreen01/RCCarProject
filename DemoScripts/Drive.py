@@ -62,6 +62,8 @@ i2cErrorCounter = 0
 # Aruco marker detection variable
 arucoCounter = 0
 
+arucoList = []
+
 # Nvidia Jetson Nano i2c Bus 0
 bus = smbus.SMBus(0)
 # address  setup in the Arduino script
@@ -231,6 +233,7 @@ def processingPipeline(frame):
 
     global DEBUG
     global arucoCounter
+    global arucoList
     global cornerTypeCounter
     global average_left_slope
     global average_right_slope
@@ -251,23 +254,26 @@ def processingPipeline(frame):
 
     if arucoCounter % 10 == 0:
         corners, ids, rejected_img_points = aruco.detectMarkers(gray_gpu.download(), aruco_dict, parameters=parameters)
-        if ids is not None and len(ids) > 0 and DEBUG == True:
-            print("Marker found")
-            for i in range(len(ids)):
-                # Extract corner points
-                corner = corners[i][0]
-                
-                # Draw bounding box
-                rect = cv2.minAreaRect(corner)
-                box = cv2.boxPoints(rect)
-                box = np.int0(box)
-                cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
+        if ids is not None and len(ids) > 0 and ids in arucoList == False:
+            arucoList.append(ids)
 
-                text_position = (int(corner[0][0]), int(corner[0][1]))
-                # Draw marker ID
-                cv2.putText(frame, str(ids[i][0]), text_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+            if DEBUG == True:
+                print("Marker found")
+                for i in range(len(ids)):
+                    # Extract corner points
+                    corner = corners[i][0]
+                    
+                    # Draw bounding box
+                    rect = cv2.minAreaRect(corner)
+                    box = cv2.boxPoints(rect)
+                    box = np.int0(box)
+                    cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
 
-            #cv2.imshow('Detected Markers', frame)
+                    text_position = (int(corner[0][0]), int(corner[0][1]))
+                    # Draw marker ID
+                    cv2.putText(frame, str(ids[i][0]), text_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
+
+                #cv2.imshow('Detected Markers', frame)
         elif DEBUG == True:
             print("No marker present in frame")
 
@@ -316,7 +322,7 @@ def processingPipeline(frame):
         # average_left_slope = 0
         # average_right_slope = 0
 
-    if cornerTypeCounter % 2 == 0 and average_left_slope is not None and average_right_slope is not None:
+    if cornerTypeCounter % 1 == 0 and average_left_slope is not None and average_right_slope is not None:
         cornerTypeDetection(average_left_slope, average_right_slope)
         cornerTypeCounter = 0
     
@@ -348,33 +354,34 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
             print("Trim left slightly")
             cornerType = "leftTrim"
 
-    elif leftLaneSlope < -0.4 and (rightLaneSlope < 0.15 or rightLaneSlope > 0.3):
+    elif leftLaneSlope < -0.4 and rightLaneSlope < 0.3:
         print("Gentle Left - both negative slope detected")
         cornerType = "gentleLeft"
-    elif leftLaneSlope > -0.15 and rightLaneSlope > 0.4:
+    elif leftLaneSlope > -0.3 and rightLaneSlope > 0.4:
         print("Gentle Right - both positive slopes ") 
         cornerType = "gentleRight"
-    # TODO need data on this to align values properly
-    elif leftLaneSlope < -10 and rightLaneSlope < -10:
-        print("90 Degree Right - both strongly negative slopes")
-            
-    elif leftLaneSlope > 10 and rightLaneSlope > 10:
-        print("90 Degree Left - both strongly positive slopes")    
 
-    # TODO logic for hairpins needs review with test footage
-    elif leftLaneSlope < -10 and rightLaneSlope > 100:
-        print("Right Entry Hairpin detected - left lane strongly negative, right lane almost flat horizontal line (close to infinite slope)")
-        #--> send control commands to Arduino to slow down, turn, etc.
-    elif leftLaneSlope > 100 and rightLaneSlope > 10:
-        print("Left Entry Hairpin  - right lane strongly positive, left lane almost flat horizontal line (close to infinite slope)")
+    # TODO need data on this to align values properly
+    # elif leftLaneSlope < -10 and rightLaneSlope < -10:
+    #     print("90 Degree Right - both strongly negative slopes")
+            
+    # elif leftLaneSlope > 10 and rightLaneSlope > 10:
+    #     print("90 Degree Left - both strongly positive slopes")    
+
+    # # TODO logic for hairpins needs review with test footage
+    # elif leftLaneSlope < -10 and rightLaneSlope > 100:
+    #     print("Right Entry Hairpin detected - left lane strongly negative, right lane almost flat horizontal line (close to infinite slope)")
+    #     #--> send control commands to Arduino to slow down, turn, etc.
+    # elif leftLaneSlope > -100 and rightLaneSlope > 10:
+    #     print("Left Entry Hairpin  - right lane strongly positive, left lane almost flat horizontal line (close to infinite slope)")
     
 
     elif np.isnan(leftLaneSlope) and rightLaneSlope is not None:
         print("No left lane detected, off track to left side of course (left lane incorrectly identified as right lane)")
-        cornerType = "leftTrim"
+        cornerType = "rightTrim"
     elif np.isnan(rightLaneSlope) and leftLaneSlope is not None:
         print("No right lane detected, off track to right side of course (right lane incorrectly identified as left lane)")
-        cornerType = "rightTrim"
+        cornerType = "leftTrim"
     elif np.isnan(leftLaneSlope) and np.isnan(rightLaneSlope):
         print("Completely off track, engage recovery protocol")
         cornerType = "automatedRecovery"
@@ -430,8 +437,10 @@ def main():
                 if keycode == 27 or keycode == ord('q'): #allow user to quit gracefully
                     break
         finally:  
+            global arucoList
             cap.release()
             cv2.destroyAllWindows()
+            print("Arucod detectuon list: ", arucoList)
     else:
         print("cap.isOpened() Error")
 
