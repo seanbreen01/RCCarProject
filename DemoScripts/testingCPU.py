@@ -215,7 +215,11 @@ def imageProcessing(frame):
     kernel_size = (9, 9)
     sigmaX = 9
     sigmaY = 5
+    
+    start = time.time()
     gray = cv2.GaussianBlur(gray, ksize=kernel_size, sigmaX=sigmaX, sigmaY=sigmaY)
+    end = time.time()
+    print("Gaussian blur time: ", end - start)
 
     # Detect edges
     canny_low_thresh = 20
@@ -235,20 +239,21 @@ def imageProcessing(frame):
     # TODO needs to be within if aruco not none etc.
     # TODO something wrong in logic here at the minute i think
     if previousArucoID != ids and ids in arucoList:
-        print("Marker not the same as previous and is saved to list")
+        #print("Marker not the same as previous and is saved to list")
+        pass
         # check sequence 
 
     elif previousArucoID == ids:
-        print("Same marker detected again, not a fluke")
+        #print("Same marker detected again, not a fluke")
         arucoList.append(ids)
         
     else:
-        print("New marker detected")
+        #print("New marker detected")
         previousArucoID = ids
     
 
     if ids is not None and len(ids) > 0 and DEBUG == True:
-        print("Marker found")
+        # print("Marker found")
         for i in range(len(ids)):
             # Extract corner points
             corner = corners[i][0]
@@ -265,7 +270,8 @@ def imageProcessing(frame):
 
         cv2.imshow('Detected Markers', frame)
     elif DEBUG == True:
-        print("No marker present in frame")
+        pass
+        # print("No marker present in frame")
 
     
 
@@ -288,12 +294,12 @@ def imageProcessing(frame):
         line_img = np.zeros((edges.shape[0], edges.shape[1], 3), dtype=np.uint8)
         leftLaneSlope, rightLaneSlope = laneSplit(line_img, houghLines)
 
-        print("Left lane slope: ", leftLaneSlope)
-        print("Right lane slope: ", rightLaneSlope)
+        # print("Left lane slope: ", leftLaneSlope)
+        # print("Right lane slope: ", rightLaneSlope)
         #cv2.imshow('Hough', line_img)
 
         combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
-        # cv2.imshow('Combined', combined)
+        cv2.imshow('Combined', combined)
 
         cornerTypeDetection(leftLaneSlope, rightLaneSlope)
     else:
@@ -318,7 +324,7 @@ def imageProcessing(frame):
 
 # Function for corner type detection --> is hairpin, trigger these control responses
 def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
-    print("Corner type detection")
+    # print("Corner type detection")
     cornerType = None
     centerMargin = 0.05
     # TODO: explore if trying to minimise the difference between both lanes is the ideal path to take, handles every case in theroy but implementation may be difficult? 
@@ -326,49 +332,49 @@ def cornerTypeDetection(leftLaneSlope, rightLaneSlope):
     # TODO tune slope values, obviously values there now are way off
     # Straight ahead
     
-    if leftLaneSlope <= -0.1 and leftLaneSlope > -0.3 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.3:
-        # commands to steering and motor to continue straight ahead, maybe increase speed?
-        print("Straight ahead")
-        # TODO tune so its not 'overly' sensitive, adjust only when needed, not if its just not perfectly centered
-        if leftLaneSlope > rightLaneSlope - centerMargin:
-            # recenter on track, too far left
-            print("shift right slightly")
-        elif rightLaneSlope > leftLaneSlope + centerMargin:
-            # recenter on track, too far right
-            print("shift left slightly")
+    # if leftLaneSlope <= -0.1 and leftLaneSlope > -0.3 and rightLaneSlope >= 0.1 and rightLaneSlope < 0.3:
+    #    # commands to steering and motor to continue straight ahead, maybe increase speed?
+    #     print("Straight ahead")
+    #     # TODO tune so its not 'overly' sensitive, adjust only when needed, not if its just not perfectly centered
+    #     if leftLaneSlope > rightLaneSlope - centerMargin:
+    #         # recenter on track, too far left
+    #         print("shift right slightly")
+    #     elif rightLaneSlope > leftLaneSlope + centerMargin:
+    #         # recenter on track, too far right
+    #         print("shift left slightly")
 
-        #TODO if mapping track
-        # --> save corner type to array, & corresponding timestamp/
-        cornerType = "straight" # TODO Have this be a key for a dictionary of corner types and their associated control commands
+    #     #TODO if mapping track
+    #     # --> save corner type to array, & corresponding timestamp/
+    #     cornerType = "straight" # TODO Have this be a key for a dictionary of corner types and their associated control commands
 
-    elif leftLaneSlope < -0.3 and rightLaneSlope < 0.3:
-        print("Gentle Left - both negative slope detected, [but left lane is steeper than right lane, so gentle right turn detected]???")
-        cornerType = "gentleLeft"
-    elif leftLaneSlope > -0.3 and rightLaneSlope > 0.3:
-        print("Gentle Right - both positive slopes ") 
-        cornerType = "gentleRight"
+    # elif leftLaneSlope < -0.3 and rightLaneSlope < 0.3:
+    #     print("Gentle Left - both negative slope detected, [but left lane is steeper than right lane, so gentle right turn detected]???")
+    #     cornerType = "gentleLeft"
+    # elif leftLaneSlope > -0.3 and rightLaneSlope > 0.3:
+    #     print("Gentle Right - both positive slopes ") 
+    #     cornerType = "gentleRight"
 
-    # TODO need data on this to align values properly
-    elif leftLaneSlope < -10 and rightLaneSlope < - 10:
-        print("90 Degree Right - both strongly negative slopes")
+    # # TODO need data on this to align values properly
+    # elif leftLaneSlope < -10 and rightLaneSlope < - 10:
+    #     print("90 Degree Right - both strongly negative slopes")
             
-    elif leftLaneSlope > 10 and rightLaneSlope > 10:
-        print("90 Degree Left - both strongly positive slopes")    
+    # elif leftLaneSlope > 10 and rightLaneSlope > 10:
+    #     print("90 Degree Left - both strongly positive slopes")    
 
-    # TODO logic for hairpins seems dodgy at best, review with test footage
-    elif leftLaneSlope < -10 and rightLaneSlope > 100:
-        print("Right Entry Hairpin detected - left lane strongly negative, right lane almost flat horizontal line (close to infinite slope)")
-        #--> send control commands to Arduino to slow down, turn, etc.
-    elif leftLaneSlope > 100 and rightLaneSlope > 10:
-        print("Left Entry Hairpin  - right lane strongly positive, left lane almost flat horizontal line (close to infinite slope)")
+    # # TODO logic for hairpins seems dodgy at best, review with test footage
+    # elif leftLaneSlope < -10 and rightLaneSlope > 100:
+    #     print("Right Entry Hairpin detected - left lane strongly negative, right lane almost flat horizontal line (close to infinite slope)")
+    #     #--> send control commands to Arduino to slow down, turn, etc.
+    # elif leftLaneSlope > 100 and rightLaneSlope > 10:
+    #     print("Left Entry Hairpin  - right lane strongly positive, left lane almost flat horizontal line (close to infinite slope)")
     
 
-    elif leftLaneSlope == None and rightLaneSlope is not None:
-        print("No left lane, off track to left side of course (left lane incorrectly identified as right lane?)")
-    elif rightLaneSlope == None and leftLaneSlope is not None:
-        print("No right lane, off track to right side of course (right lane incorrectly identified as left lane?)")
-    elif leftLaneSlope and rightLaneSlope is None:
-        print("Completely off track, engage recovery protocol")
+    # elif leftLaneSlope == None and rightLaneSlope is not None:
+    #     print("No left lane, off track to left side of course (left lane incorrectly identified as right lane?)")
+    # elif rightLaneSlope == None and leftLaneSlope is not None:
+    #     print("No right lane, off track to right side of course (right lane incorrectly identified as left lane?)")
+    # elif leftLaneSlope and rightLaneSlope is None:
+    #     print("Completely off track, engage recovery protocol")
 
     
     # TODO define corner types and their associated control commands
@@ -395,7 +401,8 @@ def sendControlCommands(cornerType = None):
     }
 
     try:
-        print("temp")
+        # print("temp")
+        pass
         # writeToArduino(corner_dict_steering[cornerType])
         # writeToArduino(corner_dict_motor[cornerType])
         #writeToArduino([0, 80, 1000])   #steering control

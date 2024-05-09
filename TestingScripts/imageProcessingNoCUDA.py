@@ -215,7 +215,11 @@ def imageProcessing(frame):
     kernel_size = (9, 9)
     sigmaX = 9
     sigmaY = 5
+    
+    start = time.time()
     gray = cv2.GaussianBlur(gray, ksize=kernel_size, sigmaX=sigmaX, sigmaY=sigmaY)
+    end = time.time()
+    print("Gaussian blur time: ", end - start)
 
     # Detect edges
     canny_low_thresh = 20
@@ -293,7 +297,7 @@ def imageProcessing(frame):
         #cv2.imshow('Hough', line_img)
 
         combined = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
-        # cv2.imshow('Combined', combined)
+        cv2.imshow('Combined', combined)
 
         cornerTypeDetection(leftLaneSlope, rightLaneSlope)
     else:
